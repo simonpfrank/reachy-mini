@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reachy Hub</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1d2330; --mute:#6b7280; --line:#e3e6eb; --ok:#1f9d55; --bad:#d64545; --warn:#c98a00; --bar:#3b82f6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151b; --card:#1b2029; --ink:#e7eaf0; --mute:#9aa3b2; --line:#2a313d; --bar:#60a5fa; } }
+  html, body { height:100%; }
+  body { margin:0; padding:16px; box-sizing:border-box; background:var(--bg); color:var(--ink);
+         font:14px/1.4 -apple-system, system-ui, sans-serif; display:flex; flex-direction:column; }
+  header { display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0 10px 0 0; }
+  .pill { padding:3px 10px; border-radius:999px; background:var(--card); border:1px solid var(--line); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--bad); margin-right:6px; }
+  .on { background:var(--ok); }
+  .group { font-size:12px; color:var(--mute); margin:6px 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+  .strip { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  .label { color:var(--mute); font-size:12px; }
+  .value { font-size:17px; font-variant-numeric:tabular-nums; }
+  .bar { height:8px; background:var(--line); border-radius:4px; margin:4px 0 6px; }
+  .bar > div { height:100%; width:0; background:var(--bar); border-radius:4px; }
+  .tools { display:flex; gap:10px; margin:12px 0 6px; align-items:center; }
+  input[type=text] { flex:1; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); }
+  #feed { flex:1; min-height:120px; overflow-y:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:4px 8px; border-top:1px solid var(--line); vertical-align:top; }
+  td.t { color:var(--mute); white-space:nowrap; font-variant-numeric:tabular-nums; }
+  td.d { font-family:ui-monospace, Menlo, monospace; font-size:12px; word-break:break-word; }
+  tr.src-hub td.k { color:var(--warn); }
+  tr.src-robot td.k { color:var(--bar); font-weight:600; }
+  tr.kind-tool td.k { color:var(--ok); font-weight:600; }
+  tr.kind-camera td.k { color:var(--warn); font-weight:600; }
+  tr.kind-log-warning td.k { color:var(--warn); font-weight:600; }
+  tr.kind-log-error td, tr.kind-tool-failed td, tr.has-error td { color:var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Reachy Hub</h1>
+  <span class="pill"><span id="robotDot" class="dot"></span>Robot: <span id="robotLink">-</span></span>
+  <span class="pill"><span id="appDot" class="dot"></span>App: <span id="appLink">-</span></span>
+  <span class="pill"><span id="imuDot" class="dot"></span>IMU: <span id="imuLink">-</span></span>
+  <span class="pill"><span id="logDot" class="dot"></span>Log: <span id="logLink">-</span></span>
+</header>
+
+<div class="group">Robot</div>
+<section class="strip">
+  <div class="card"><div class="label">Motors</div><div class="value" id="motors">-</div></div>
+  <div class="card"><div class="label">Head roll / pitch / yaw (°)</div><div class="value" id="head">-</div></div>
+  <div class="card"><div class="label">Body yaw (°)</div><div class="value" id="body">-</div></div>
+  <div class="card"><div class="label">Sound direction (° from front, + left)</div>
+    <div class="value"><span id="speechDot" class="dot"></span><span id="sound">-</span></div></div>
+  <div class="card"><div class="label">Sound level: you</div><div class="bar"><div id="userBar"></div></div>
+    <div class="label">Sound level: robot</div><div class="bar"><div id="robotBar"></div></div></div>
+</section>
+
+<div class="group">IMU (head; directions in sensor axes, not yet calibrated to the robot's front)</div>
+<section class="strip">
+  <div class="card"><div class="label">Tilt from upright</div><div class="value" id="imuTilt">-</div></div>
+  <div class="card"><div class="label">Rotation (°/s)</div><div class="value" id="imuMotion">-</div></div>
+  <div class="card"><div class="label">Acceleration (m/s², ~9.8 still)</div><div class="value" id="imuAccel">-</div></div>
+  <div class="card"><div class="label">Last tap: strength, direction</div><div class="value" id="lastTap">-</div></div>
+  <div class="card"><div class="label">Head temperature (°C)</div><div class="value" id="temp">-</div></div>
+</section>
+
+<div class="tools">
+  <input type="text" id="filter" placeholder="Filter events (e.g. tool, error, transcript, tap)">
+  <label><input type="checkbox" id="pause"> Pause</label>
+</div>
+<div id="feed"><table><tbody id="rows"></tbody></table></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmt = (v) => (v === null || v === undefined ? "-" : v);
+let lastSeq = 0;
+
+function link(dotId, textId, status) {
+  $(textId).textContent = status;
+  $(dotId).classList.toggle("on", status === "connected");
+}
+
+function agoText(iso) {
+  const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  return s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
+}
+
+function applyFilter(tr) {
+  const q = $("filter").value.toLowerCase();
+  tr.style.display = !q || tr.dataset.text.includes(q) ? "" : "none";
+}
+
+function addRow(e) {
+  const tr = document.createElement("tr");
+  tr.className = `src-${e.source} kind-${e.kind.split(".")[0]} kind-${e.kind.replace(".", "-")}`;
+  if (e.data && e.data.error) tr.classList.add("has-error");
+  const t = new Date(e.time).toLocaleTimeString([], { hour12: false });
+  tr.innerHTML = `<td class="t">${t}</td><td>${e.source}</td><td class="k">${e.kind}</td><td class="d"></td>`;
+  tr.querySelector(".d").textContent = JSON.stringify(e.data);
+  tr.dataset.text = (e.source + " " + e.kind + " " + JSON.stringify(e.data)).toLowerCase();
+  applyFilter(tr);
+  $("rows").appendChild(tr);
+}
+
+function render(s) {
+  link("robotDot", "robotLink", s.robot_link);
+  link("appDot", "appLink", s.app_link);
+  link("imuDot", "imuLink", s.imu_link);
+  link("logDot", "logLink", s.log_link);
+  const r = s.robot || {};
+  $("motors").textContent = fmt(r.motor_mode);
+  $("head").textContent = `${fmt(r.head_roll_deg)} / ${fmt(r.head_pitch_deg)} / ${fmt(r.head_yaw_deg)}`;
+  $("body").textContent = fmt(r.body_yaw_deg);
+  $("sound").textContent = fmt(r.sound_dir_deg);
+  $("speechDot").classList.toggle("on", r.speech_detected === true);
+  $("temp").textContent = fmt(r.imu_temp_c);
+  $("userBar").style.width = Math.min(100, (s.user_level || 0) * 100) + "%";
+  $("robotBar").style.width = Math.min(100, (s.robot_level || 0) * 100) + "%";
+  const imu = s.imu.latest, tap = s.imu.last_tap;
+  $("imuTilt").textContent = imu ? `${imu.tilt_deg}° toward ${imu.tilt_dir_deg}°` : "-";
+  $("imuMotion").textContent = imu ? imu.motion_dps : "-";
+  $("imuAccel").textContent = imu ? imu.accel : "-";
+  $("lastTap").textContent = tap ? `${tap.strength} m/s², ${tap.direction_deg}° (${agoText(tap.time)})` : "none yet";
+  if ($("pause").checked) return;
+  const feed = $("feed");
+  const atBottom = feed.scrollTop + feed.clientHeight >= feed.scrollHeight - 20;
+  s.events.filter((e) => e.seq > lastSeq).forEach((e) => { addRow(e); lastSeq = e.seq; });
+  if (atBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+async function poll() {
+  try { render(await (await fetch("/api/snapshot")).json()); }
+  catch (_) { ["robot", "app", "imu", "log"].forEach((n) => link(n + "Dot", n + "Link", "hub not responding")); }
+  setTimeout(poll, 200);
+}
+$("filter").addEventListener("input", () => document.querySelectorAll("#rows tr").forEach(applyFilter));
+poll();
+</script>
+</body>
+</html>

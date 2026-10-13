@@ -1,0 +1,1 @@
+../.claude/skills/rest-api/SKILL.md

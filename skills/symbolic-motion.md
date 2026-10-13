@@ -1,0 +1,1 @@
+../.claude/skills/symbolic-motion/SKILL.md

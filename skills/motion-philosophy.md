@@ -1,0 +1,1 @@
+../.claude/skills/motion-philosophy/SKILL.md

@@ -1,0 +1,1 @@
+../.claude/skills/ai-integration/SKILL.md

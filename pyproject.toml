@@ -1,0 +1,48 @@
+[project]
+name = "reachy_hub"
+version = "0.1.0"
+description = "Telemetry hub and dashboard for Reachy Mini: robot state, app events, system stats"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "websockets",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio", "pytest-cov", "ruff", "mypy"]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["reachy_hub*"]
+
+[tool.setuptools.package-data]
+reachy_hub = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 119
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "D"]
+
+[tool.mypy]
+strict = true
+
+[[tool.mypy.overrides]]
+# The conversation app (Tool base for robot_tools) only exists on the robot.
+module = ["reachy_mini_conversation_app.*"]
+ignore_missing_imports = true
