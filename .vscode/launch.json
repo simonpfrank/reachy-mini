@@ -1,36 +1,20 @@
 {
   "version": "0.2.0",
-  "compounds": [
-    {
-      "name": "Reachy: conversation + runtime",
-      "configurations": ["Reachy: development runtime", "Reachy: conversation app"],
-      "stopAll": true
-    }
-  ],
   "configurations": [
     {
       "name": "Reachy: conversation app",
       "type": "debugpy",
       "request": "launch",
       "module": "reachy_mini_conversation_app.main",
-      "args": ["--ui", "--debug"],
+      "args": [
+        "--ui",
+        "--debug"
+      ],
       "python": "${workspaceFolder}/.venv/bin/python",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
       "console": "integratedTerminal",
       "justMyCode": false
-    },
-    {
-      "name": "Reachy: development runtime",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "robot_tools.conversation_runtime",
-      "args": ["--config", "${workspaceFolder}/.development/runtime.json"],
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "justMyCode": true
     },
     {
       "name": "Reachy: telemetry hub",
@@ -40,28 +24,6 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "cwd": "${workspaceFolder}",
       "envFile": "${workspaceFolder}/.env",
-      "console": "integratedTerminal",
-      "justMyCode": true
-    },
-    {
-      "name": "Reachy: offline workbench",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "reachy_workbench",
-      "args": ["dev"],
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "justMyCode": true
-    },
-    {
-      "name": "Reachy: offline scenario",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "reachy_workbench",
-      "args": ["demo"],
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "justMyCode": true
     }

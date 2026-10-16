@@ -3,7 +3,7 @@
 One new thing per step. Status: ✅ done, 🟡 in progress, ❌ not started. Architecture: [architecture](architecture.md). Reference links: [ideas](ideas.md). Tool reference: [tools](tools.md).
 
 **Status, 2026-10-16:** conversation and speaker mute work (confirmed by Simon); voice following is usable,
-with accuracy refinement deferred. Phase 2 is planned but not built. Earlier patched-app results are historical.
+with accuracy refinement deferred. Phase 2 is redesigned as on-robot public tools; not built. Earlier patched-app results are historical.
 Functional requirements live only here; phase documents describe implementation against the IDs below.
 
 | # | Step | Done when | Data risk | Status |
@@ -35,7 +35,7 @@ Functional requirements live only here; phase documents describe implementation 
 | Phase | Requirement IDs | State | Implementation plan |
 |---|---|---|---|
 | 1: context and control | C1–C4 | Delivered; following accuracy accepted for now | Current implementation: [tools](tools.md) |
-| 2: public information | P2-1–P2-6 | Planned, not built; previously authorised | [phase2.md](phase2.md) |
+| 2: public information | P2-1–P2-6 | Planned 2026-10-16 (on-robot redesign); not built | [phase2.md](phase2.md) |
 | Future phases | Backlog below | Not scheduled; select items before writing another phase plan | None |
 
 ## Delivered context and control
@@ -44,10 +44,10 @@ Functional requirements live only here; phase documents describe implementation 
 - **C2 — Location:** one editable, external record shared by weather/search/news: place, region, country,
   paired town-level coordinates, timezone, source and update time. Cobham, Surrey, UK is provisional;
   no guessed street address/GPS/IP location. Per-request place overrides do not change home location.
-- **C3 — Speaker mute:** natural-language intent calls speech_control; no exact phrase list. Mute the speaker
-  without changing volume or microphone input. Model replies, tool calls and telemetry continue while muted.
-  Explicit unmute restores sound; do not acknowledge mute aloud. Persist the preference across reload/restart;
-  failures are explicit. Voice following is independent. This supersedes the old response/tool-blocking design.
+- **C3 — Speaker mute:** natural-language intent calls speech_control; no exact phrase list. Mute sets the speaker
+  volume to 0 through the daemon volume API and remembers the level; unmute restores it. Any volume change
+  (dashboard slider, volume tool) also restores sound. No relay or second mute control. Model replies, tool calls
+  and telemetry continue while muted; do not acknowledge mute aloud. Voice following is independent.
 - **C4 — Voice following:** one app-owned worker, automatic startup, explicit on/off and cleanup across reloads.
   Use the app's single motion owner; retain facing through breathing/gestures. Circular bearings, safe clamping,
   scaled smooth turns, saturation suppression and fresh sustained/dominant speech evidence; pause during robot
@@ -55,27 +55,23 @@ Functional requirements live only here; phase documents describe implementation 
 
 ## Phase 2 requirements
 
-- **P2-1 — Search/read:** reuse harness Tavily search and readable-page extraction via a narrow public service,
-  without a second agent loop. Preserve source URLs, publication/update dates and explicit provider failures.
-  Search handles dated/specific queries; article text remains untrusted data, never tool instructions.
-- **P2-2 — Forecasts:** consume C2; support explicit place overrides, today/tomorrow, hourly, weekend and seven-day
-  periods, units and provider/update times. Include alerts if the provider supports them; disambiguate locations.
-- **P2-3 — News:** stable headline IDs/numbering survive unrelated calls, tool reloads and backend reconnects.
-  “The second one” refers to the presented selection. Retrieve selected article text before detailed answers;
-  retain bounded source/date/completeness context for follow-up. Speak summaries, distinguish inference and
-  reporting, and state unavailable/partial article coverage.
-- **P2-4 — Availability/privacy:** general information works with the Mac off. Send only public queries,
-  town-level forecast location and public URLs, never private memory or camera payloads. Keep the private brain
-  separate; no broad harness agent/session access.
-- **P2-5 — Credentials/network:** backend provider keys stay in managed secrets; the robot holds only a scoped
-  read-only service credential in a private 0600 file. No credentials in source, profiles, prompts, command
-  arguments, browser code or telemetry. Document credential names and rotation/revocation. Bound request time,
-  redirects, bytes and caches; reject private/local URL targets and redirects, connect only to vetted IPs.
-- **P2-6 — Setup/replacement:** build before requesting keys; do not borrow harness credentials. Privately prompt
-  for deployment authentication, Tavily key and read-only robot access; deploy/configure/verify with backup through
-  supported interfaces. Preserve persona, voice and external state. Keep stock search/weather until replacements
-  pass; then remove duplicate stock search/weather/time choices. Test missing-key/quota failures, safe redirects,
-  forecasts and news context in one batch; separate local results from keyed/hosted acceptance.
+Public tools only, run on the robot. Motto: robust but simple. No private data is in scope.
+
+- **P2-1 — Search:** `web_search` calls Tavily directly from the robot. Return title, URL, publication date
+  where given and snippet for each result; explicit provider failures. Use C1 so queries carry the right date.
+- **P2-2 — Read:** `read_article` gets readable page text through Tavily Extract; the robot does not fetch
+  article pages itself. Text is bounded, returned as untrusted page content (never instructions) and states
+  when it is partial or unavailable.
+- **P2-3 — Forecasts:** `weather` uses the UK Met Office model through Open-Meteo (no key) and C2; explicit place overrides, today/tomorrow,
+  hourly, weekend and seven-day periods, units and provider update time; disambiguate places.
+- **P2-4 — News:** `news` uses BBC RSS plus topic search. Headline numbering survives unrelated calls, tool
+  reloads and reconnects; "the second one" refers to the presented list. Fetch the article (P2-2) before
+  detailed answers; distinguish reporting from inference and state incomplete coverage.
+- **P2-5 — Guardrails:** HTTPS to fixed provider endpoints only; timeouts and response-size caps; standard
+  library only. Tavily key in a private 0600 file in the tools state directory, never in source, profiles,
+  prompts or logs. Each search, read and failure is logged. Accepted risk: misuse while unattended.
+- **P2-6 — Setup/replacement:** build and unit-test without a key; Simon places the key in the file. Keep the
+  Pollen's built-in search/weather tools until replacements pass, then remove them from the tool selection.
 
 ## Backlog — not scheduled
 
@@ -102,6 +98,11 @@ Existing requests and ideas below remain in place. Additional detail consolidate
   Acceptance: visitor A leaves during sleep; wake/restart must not assume A remains, including failed/partial scans.
 
 ### Further candidates
+
+- **B-WEBGATE:** if public-tool misuse appears, or before private data shares a context with web content:
+  links returned as IDs only, domain allowlist with redirect re-checks, approval tool whose grant is
+  verified outside the model (relay transcript or hub button), and treatment of search queries as an
+  outbound channel.
 
 - **B-CONTROLS:** timers/alarms; consistent pause/resume/cancel/repeat/continue controls; capability/status help
   covering available tools, location, speaker/following state and service availability.
@@ -145,7 +146,7 @@ Requested 2026-10-15. Record for discussion only; no implementation or service c
 
 ## Side tracks (not blocking)
 - **✅ Typed utterances in telemetry (2026-10-15).** Single-line input directly above the filter, same width, plus Send. Hub `/api/utterances` forwards to the app's `conversation.say`, which creates a user text turn and requests a model response. Send/Enter, pending-send protection and text retention on failure implemented. Delivery/errors and reactions use existing telemetry logs. Local server restarted; Chrome layout/submit checks passed; real robot reply "Text input works." observed in telemetry.
-- **Web search is poor (seen 2026-10-13 via the hub).** Two faults: the AI searched "current movie list 2024" (doesn't know today's date) and Pollen's search Space returned "Electric current - Wikipedia"; it also sometimes returns "web search failed". Fix: step 4/5 replaces Pollen's search with ours via `ask_brain` (agent-harness has web search).
+- **Web search is poor (seen 2026-10-13 via the hub).** Two faults: the AI searched "current movie list 2024" (doesn't know today's date) and Pollen's search Space returned "Electric current - Wikipedia"; it also sometimes returns "web search failed". Fix: Phase 2 replaces Pollen's search with `web_search` (P2-1).
 - **Which models answer us? (parked 2026-10-13; Simon wants all the possibilities)**
   - Today (hosted): app names no model; Pollen's forwarder (`pollen-robotics-reachy-mini-realtime-url.hf.space`, supports A/B) sends sessions to a private HF Inference Endpoint (`hkbax8u9qwedr1uv.endpoints.huggingface.cloud`). Voice list = Qwen3-TTS CustomVoice presets, so very likely HF speech-to-speech (Silero VAD -> STT, likely Parakeet -> vision-capable LLM -> Qwen3-TTS). LLM unconfirmed. Hosted reply speed baseline: first audio ~1.45 s after transcript (app's own "Turn latency" log).
   - To confirm: run the app by hand on the robot with `--debug` (Pollen dev workflow) and read `session.created`.

@@ -1,15 +1,15 @@
 """Voice following owned by the stock app's background-tool manager.
 
-Started by the external realtime relay through normal tool-call events. Uses only the public
-movement queue/status methods, SDK sensing and BreathingMove's Move contract. No app hooks,
-import-time workers, direct daemon motor commands or installed-code changes.
+Started by a normal tool call (the profile greeting asks for it at session start). Uses the public
+movement queue/status methods, SDK sensing and BreathingMove's Move contract, and reads the movement
+manager's speaking flag to ignore the robot's own voice. No relay, app hooks, import-time workers,
+direct daemon motor commands or installed-code changes.
 """
 
 import asyncio
 import json
 import logging
 import math
-import os
 import statistics
 import time
 import urllib.request
@@ -80,18 +80,6 @@ def _read_doa() -> tuple[float, bool] | None:
     with urllib.request.urlopen(DOA_URL, timeout=1.0) as response:
         data = json.load(response)
     return (float(data["angle"]), bool(data["speech_detected"])) if data else None
-
-
-def runtime_request(route: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Call the companion control service on loopback only."""
-    request = urllib.request.Request(
-        f"http://127.0.0.1:{int(os.environ.get('REACHY_TOOLS_CONTROL_PORT', '8767'))}" + route,
-        data=json.dumps(payload).encode() if payload is not None else None,
-        headers={"Content-Type": "application/json"},
-        method="POST" if payload is not None else "GET",
-    )
-    with urllib.request.urlopen(request, timeout=1) as response:  # noqa: S310 -- fixed loopback
-        return dict(json.load(response))
 
 
 class FacingBreath(BreathingMove):  # type: ignore[misc]
@@ -225,11 +213,7 @@ class StockFollower:
         logger.info("VOICE_LOOK on worker=%s", self.worker)
         try:
             while self.running:
-                state = await asyncio.to_thread(
-                    runtime_request, "/heartbeat", {"running": True, "worker": self.worker}
-                )
-                if not state["voice_enabled"]:
-                    break
+                state = {"speaking": bool(getattr(self.deps.movement_manager, "_is_speaking", False))}
                 try:
                     await self.step(state, time.monotonic())
                 except (OSError, ValueError, TimeoutError) as error:
@@ -237,10 +221,6 @@ class StockFollower:
                 await asyncio.sleep(POLL_S)
         finally:
             self.running = False
-            try:
-                await asyncio.to_thread(runtime_request, "/heartbeat", {"running": False, "worker": self.worker})
-            except OSError:
-                pass
             logger.info("VOICE_LOOK off worker=%s", self.worker)
         return {"enabled": False, "running": False, "worker": self.worker}
 
@@ -266,7 +246,6 @@ class VoiceLook(Tool):  # type: ignore[misc]
         enabled = kwargs.get("enabled", True)
         if not isinstance(enabled, bool):
             raise ValueError("enabled must be boolean")
-        await asyncio.to_thread(runtime_request, "/voice", {"enabled": enabled})
         manager = deps.movement_manager
         owner = vars(manager).setdefault("_stock_voice_follower", StockFollower(deps))
         if not enabled:

@@ -7,41 +7,35 @@ Paths and launch configuration: [setup](development_setup.md).
 |---|---|
 | `today` | No arguments; spoken date/time plus structured fields |
 | `location` | Configured place, region, country, timezone, optional paired coordinates and provisional flag |
-| `speech_control` | Optional boolean `enabled`; omitted reads state, false mutes speaker, true unmutes |
+| `speech_control` | Optional boolean `enabled`; false sets daemon speaker volume 0 (level remembered in `speaker_restore.json`), true restores it, omitted reads |
 | `voice_look` | `enabled`; runs under the stock app's background-tool manager |
+| `weather` | Optional `place`, `period` (now/today/tomorrow/hourly/weekend/week), `units`; UK Met Office model via Open-Meteo for UK places; ambiguous names return candidates |
+| `news` | Optional `topic`: BBC section (top, world, uk, politics, business, technology, science, health, entertainment) or any subject via Tavily news search; numbered, saved for follow-up |
+| `web_search` | `query`, optional `recent` (day/week/month/year); Tavily; numbered results saved for follow-up |
+| `read_article` | `number` from the last search/news list, or `url`; text via Tavily Extract, max 8000 characters |
 
 `stay_silent` is retired. Stock search/weather, camera, sweep and move tools remain upstream;
 `sweep_look` queues motion only, `camera` captures one image, and `move_head` has fixed presets.
 These do not implement the roadmap's scan or precise-alignment backlog.
 
-## Companion runtime
+## No relay
 
-`conversation_runtime.py` is a supervised service, not a model-callable tool. It forwards conversation
-traffic and supplies the loopback controls used by the adapters:
-
-| Route | Method | Purpose |
-|---|---|---|
-| `/state`, `/health` | GET | Mute/follower state, mode and operational counters |
-| `/speech` | POST `{"enabled": bool}` | ALSA `Audio` card, `PCM,0` playback mute/unmute |
-| `/voice` | POST `{"enabled": bool}` | Follower preference |
-| `/heartbeat` | POST | Worker identity/running heartbeat |
-
-Mute changes the playback switch, not numeric volume, capture or response generation. It persists
-in external `speech.json` and is reapplied when the service starts. No phrase matching is performed
-in the live relay; `speech_control` is invoked by the model. Errors reach the caller.
+The former relay (`conversation_runtime.py`) was retired on 2026-10-16 and is kept under `archive/relay/`.
+The app connects directly to Pollen's backend ("deployed" mode). Mute uses the daemon volume API.
+`voice_look` runs standalone; the Standard profile greeting asks the model to start it.
 
 ## Settings and source layout
 
 `REACHY_TOOLS_STATE_DIR` defaults to `~/.config/reachy_tools/`. `location.json` stores place,
-region, country, country_code, timezone, latitude/longitude and provisional status. `speech.json`
-stores the speaker preference. Neither belongs in Git. Control port is selected by
-`REACHY_TOOLS_CONTROL_PORT` (default 8767).
+region, country, country_code, timezone, latitude/longitude and provisional status. `speaker_restore.json`
+stores the level unmute restores. `last_results.json` holds the last numbered search/news list.
+`tavily_key` (chmod 600) holds the Tavily key. None of these belong in Git.
 
-`robot_tools/` contains adapters, runtime source and package marker. The patch helpers were moved to
+`robot_tools/` contains the tool files and package marker. The patch helpers were moved to
 `archive/retired_patches/`; installation/deployment write paths remain disabled. The old Mac-specific
 `deploy_runtime.py` was deleted. The unused historical `SpeechState` code remains in speech_control.py
 for regression tests; it is not the live mute implementation.
 
 Old staged scripts under `/home/pollen/reachy_tools_deploy/` were not changed and must not be run.
-Installed package files are not deployment targets. The current service still uses the dashboard
-app interpreter; independent dependency management remains roadmap maintenance work.
+Installed package files are not deployment targets. Tools run in the dashboard app interpreter, so they
+use the standard library only.

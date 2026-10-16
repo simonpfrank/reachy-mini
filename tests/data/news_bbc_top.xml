@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title><![CDATA[BBC News]]></title>
+        <description><![CDATA[BBC News - News Front Page]]></description>
+        <link>https://www.bbc.co.uk/news</link>
+        <image>
+            <url>https://news.bbcimg.co.uk/nol/shared/img/bbc_news_120x60.gif</url>
+            <title>BBC News</title>
+            <link>https://www.bbc.co.uk/news</link>
+        </image>
+        <generator>RSS for Node</generator>
+        <lastBuildDate>Fri, 16 Oct 2026 23:02:27 GMT</lastBuildDate>
+        <atom:link href="https://feeds.bbci.co.uk/news/rss.xml" rel="self" type="application/rss+xml"/>
+        <copyright><![CDATA[Copyright: (C) British Broadcasting Corporation, see https://www.bbc.co.uk/usingthebbc/terms-of-use/#15metadataandrssfeeds for terms and conditions of reuse.]]></copyright>
+        <language><![CDATA[en-gb]]></language>
+        <ttl>15</ttl>
+        <item>
+            <title><![CDATA[Watch: Will Ukraine get the support needed as tensions with US rise?]]></title>
+            <description><![CDATA[Zelensky thanked the "real leaders" ahead of a meeting with the EU in Brussels.]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cm2ke1v8e4geo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cm2ke1v8e4geo#1</guid>
+            <pubDate>Fri, 16 Oct 2026 15:45:10 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/d887/live/549b5300-c978-11f1-9a39-31b474234113.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Inside Ukrainian offensive pushing Russia back - with Starlink playing a key role]]></title>
+            <description><![CDATA[The BBC joins Ukraine's Operation Vivaldi as it regains crucial territory in the Donbas, but optimism has been dampened by souring relations with President Trump.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cvx284w16z1po?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cvx284w16z1po#1</guid>
+            <pubDate>Fri, 16 Oct 2026 16:00:30 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/1e40/live/404f3fb0-c978-11f1-80fc-ab418b149008.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Nurse stole £750k from 99-year-old woman for cosmetic surgery and home improvements]]></title>
+            <description><![CDATA[Rebecca Louise Burwood saw the vulnerable victim "as her nanna" but stole to fund her lifestyle.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cm9qzx43rlzjo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cm9qzx43rlzjo#1</guid>
+            <pubDate>Fri, 16 Oct 2026 16:07:37 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/12b7/live/45d84a90-c977-11f1-8791-fbfa2cae660f.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Man killed by tiger may have had medical records breached by NHS staff]]></title>
+            <description><![CDATA[William Chapman, 24, was mauled to death at Yorkshire Wildlife Park, near Doncaster, on Saturday. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c875prd12vkqo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c875prd12vkqo#1</guid>
+            <pubDate>Fri, 16 Oct 2026 16:53:07 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/05d0/live/f5971c60-c7c2-11f1-993a-152cbb068da1.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Chris Mason: Burnham and Swinney tussle over where power lies in Scotland]]></title>
+            <description><![CDATA[UK political debate has a distinctly Scottish feel after SNP's annual conference, says the BBC's political editor Chris Mason.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cmlyl889jqzjo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cmlyl889jqzjo#1</guid>
+            <pubDate>Fri, 16 Oct 2026 20:08:07 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3d75/live/0ca950a0-c99c-11f1-bbdb-dfedf7e9e654.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Watch: Did Tesla really just unveil a flying car?]]></title>
+            <description><![CDATA[Tesla CEO Elon Musk showcased the vehicle at a facility owned by his SpaceX company, which helped develop the model.]]></description>
+            <link>https://www.bbc.co.uk/news/videos/ckly4mj1g3n9o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/ckly4mj1g3n9o#1</guid>
+            <pubDate>Fri, 16 Oct 2026 12:32:31 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/b96f/live/01c77470-c963-11f1-bc2e-018d645d8d21.png"/>
+        </item>
+        <item>
+            <title><![CDATA[Police feared Andrew would delay search by saying King owned his home, documents show]]></title>
+            <description><![CDATA[Legal records have emerged which show why police wanted to search the royal's home and what they were looking for.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c6wyrk0gxlw2o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c6wyrk0gxlw2o#1</guid>
+            <pubDate>Fri, 16 Oct 2026 18:37:26 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/6fbb/live/79288160-c325-11f1-9981-cf94ea240e40.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Palestinians and US journalist injured by Israeli settlers in West Bank harvest attack]]></title>
+            <description><![CDATA[The BBC sees masked settlers attack Palestinians trying to harvest olives, amid a surge in similar incidents.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c65ynk7212vqo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c65ynk7212vqo#1</guid>
+            <pubDate>Fri, 16 Oct 2026 14:31:04 GMT</pubDate>
+            <media:thumbnail width="240" height="130" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/cc2e/live/1a3bde40-c96f-11f1-9a39-31b474234113.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Norwegian teen 'hitman' jailed over UK murder plot]]></title>
+            <description><![CDATA[Johannes Natland, 19, travelled to West Yorkshire to carry out a "hit" in March last year.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cw8rzpl1ldkdo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cw8rzpl1ldkdo#1</guid>
+            <pubDate>Fri, 16 Oct 2026 13:43:21 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/fff3/live/4dce39c0-c955-11f1-a64c-550be9e3c66b.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Woman says she was left 'bewildered and confused' by alleged Russell Brand assault]]></title>
+            <description><![CDATA[The 51-year-old faces three counts of rape, three of sexual assault and one of indecent assault, all of which he denies.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/ck8dz6m1d2n6o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/ck8dz6m1d2n6o#1</guid>
+            <pubDate>Fri, 16 Oct 2026 14:06:59 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/2f6b/live/30927a50-c93d-11f1-8c38-abe947e72d6d.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Analysis: Zacharia was thrown into a whirlwind - and failed at a critical time for Trump]]></title>
+            <description><![CDATA[The White House is facing growing adversity, writes the BBC's Anthony Zurcher, weeks before crucial midterm elections.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c6e3xnjlz12do?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c6e3xnjlz12do#2</guid>
+            <pubDate>Fri, 16 Oct 2026 21:02:18 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/355e/live/bd7af110-c99f-11f1-ad54-aba20166b422.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Watch: BBC follows Ukraine's Operation Vivaldi pushing Russia back on frontline]]></title>
+            <description><![CDATA[Kyiv says it has recaptured 277 sq km (106 square miles) of territory in the eastern Donbas region in recent months]]></description>
+            <link>https://www.bbc.co.uk/news/videos/cm1ex06026e8o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/videos/cm1ex06026e8o#2</guid>
+            <pubDate>Fri, 16 Oct 2026 17:41:53 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/7b1b/live/eaf3be50-c982-11f1-a64c-550be9e3c66b.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[The Olympic sprinter now bedbound for 22 hours a day]]></title>
+            <description><![CDATA[Beth Dobbin ran for Great Britain at the Tokyo Olympics in 2021. Five years on, she is largely bedbound after being diagnosed with ME, a devastating illness for which there is no cure.]]></description>
+            <link>https://www.bbc.co.uk/sport/athletics/articles/crd6dj26v4e4o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/sport/athletics/articles/crd6dj26v4e4o#2</guid>
+            <pubDate>Fri, 16 Oct 2026 05:31:22 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/9cf5/live/da01e790-c7d7-11f1-a64c-550be9e3c66b.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Street Fighter movie is 'made by fans for fans' - but can it KO the critics?]]></title>
+            <description><![CDATA[Cast members Noah Centineo, Andrew Koji and Callina Liang discuss the latest video game adaptation.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cj040z4ngnz1o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cj040z4ngnz1o#2</guid>
+            <pubDate>Fri, 16 Oct 2026 12:06:04 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/5371/live/c6e78510-c959-11f1-9a39-31b474234113.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Collaboration with Off Campus star 'gave me chills', says Babydoll singer Jamie Miller]]></title>
+            <description><![CDATA[Jamie Miller hopes he's "doing Wales proud" as his viral hit narrowly misses out on UK number one.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cq5yndllj8d8o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cq5yndllj8d8o#2</guid>
+            <pubDate>Fri, 16 Oct 2026 16:57:00 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/cc20/live/6913b550-c308-11f1-a64c-550be9e3c66b.png"/>
+        </item>
+        <item>
+            <title><![CDATA['People call them pervert glasses': Blind users fear backlash over smart tech ]]></title>
+            <description><![CDATA[Concerns about the use of smart glasses are having an affect on visually-impaired users.  ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cq2d6e56n85go?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cq2d6e56n85go#2</guid>
+            <pubDate>Fri, 16 Oct 2026 05:23:00 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/42cb/live/1cc1fab0-c8b0-11f1-a64c-550be9e3c66b.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Your child wasn't invited to the party - here's how to handle the disappointment]]></title>
+            <description><![CDATA[This very common scenario can be sad for little ones but there are ways you can help them.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cr86zjee80p9o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cr86zjee80p9o#2</guid>
+            <pubDate>Fri, 16 Oct 2026 11:17:28 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3f45/live/64f83d80-c946-11f1-bc2e-018d645d8d21.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Sign up now]]></title>
+            <description><![CDATA[From news and politics to technology and the royals, get the best BBC journalism to your inbox.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c2lkky9zngvo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c2lkky9zngvo#3</guid>
+            <pubDate>Wed, 09 Sep 2026 10:24:59 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/9a71/live/3d86bbd0-c641-11f1-a64c-550be9e3c66b.png"/>
+        </item>
+        <item>
+            <title><![CDATA['Well-known' man asks court to stop publication of sexual offence allegation]]></title>
+            <description><![CDATA[The unnamed individual asks London's High Court to prevent the publication of "serious allegations".]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c674pz3l0e73o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c674pz3l0e73o#4</guid>
+            <pubDate>Fri, 16 Oct 2026 18:46:14 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/4f7c/live/e1c76d70-c961-11f1-a6e6-417671ef62cb.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Pope pictured for first time since surgery as he says Mass at makeshift altar in hospital]]></title>
+            <description><![CDATA[The pontiff was diagnosed with lung cancer after having surgery at Rome's Gemelli Hospital on Tuesday.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cw146ej00yn7o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cw146ej00yn7o#4</guid>
+            <pubDate>Fri, 16 Oct 2026 14:36:39 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/b711/live/6c3028b0-c978-11f1-9a39-31b474234113.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Catherine says nature can help children's emotional growth]]></title>
+            <description><![CDATA[The Princess of Wales launches a project encouraging a greater emphasis on children learning from nature.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cmly0n4nzq5qo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cmly0n4nzq5qo#4</guid>
+            <pubDate>Fri, 16 Oct 2026 12:06:22 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/3700/live/1bf0f100-c95e-11f1-9a39-31b474234113.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Police assess Palestine Action post by national security adviser's wife]]></title>
+            <description><![CDATA[Downing Street says Sarah Helm, the wife of Jonathan Powell, "does not represent the government in any capacity".]]></description>
+            <link>https://www.bbc.co.uk/news/articles/crn4el88y7p2o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/crn4el88y7p2o#4</guid>
+            <pubDate>Fri, 16 Oct 2026 18:58:05 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/1144/live/5fea0720-c977-11f1-8791-fbfa2cae660f.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[British father fined for causing his two-year-old son's death in Cyprus hotel fall]]></title>
+            <description><![CDATA[Joshua Foster "lost control" of his son while showing him the view of a water park from a window. ]]></description>
+            <link>https://www.bbc.co.uk/news/articles/cvj6j1klez88o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/cvj6j1klez88o#4</guid>
+            <pubDate>Fri, 16 Oct 2026 14:21:32 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/ca70/live/ee811780-c945-11f1-94af-5f148d758fe7.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Former Sale Sharks player Hyron Andrews dies ahead of new club's Champions Cup match]]></title>
+            <description><![CDATA[Hyron Andrews dies at his Johannesburg Lions' team hotel before their Champions Cup match at La Rochelle on Saturday.]]></description>
+            <link>https://www.bbc.co.uk/sport/rugby-union/articles/cqdjvxynj2kyo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/sport/rugby-union/articles/cqdjvxynj2kyo#4</guid>
+            <pubDate>Fri, 16 Oct 2026 14:33:04 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/002b/live/fb4e94e0-c96f-11f1-80fc-ab418b149008.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Ex-top official Robbins reaches settlement with government over sacking]]></title>
+            <description><![CDATA[Sir Olly Robbins was sacked as the top civil servant in the Foreign Office over the vetting of Lord Mandelson.]]></description>
+            <link>https://www.bbc.co.uk/news/articles/c64g18r402geo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/articles/c64g18r402geo#4</guid>
+            <pubDate>Fri, 16 Oct 2026 16:38:18 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/0212/live/e6e99a00-c97d-11f1-80fc-ab418b149008.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Download now]]></title>
+            <description><![CDATA[Top stories, breaking news, live reporting, and follow news topics that match your interests]]></description>
+            <link>https://www.bbc.co.uk/news/10628994?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/news/10628994#5</guid>
+            <pubDate>Wed, 30 Apr 2025 14:04:28 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/2cf6/live/d1e71250-9509-11ee-8df3-1d2983d8814f.png"/>
+        </item>
+        <item>
+            <title><![CDATA[Wildfire: A Warning from the Midlands]]></title>
+            <description><![CDATA[What can we learn from wildfires that destroyed 38 homes in the Midlands in August 2026? ]]></description>
+            <link>https://www.bbc.co.uk/iplayer/episode/m0032x9b?at_mid=5Ey2ExaRnm&amp;at_campaign=Wildfire_A_Warning_from_the_Midlands_news_rail&amp;at_medium=display_ad&amp;at_campaign_type=owned&amp;at_nation=NET&amp;at_audience_id=SS&amp;at_product=iplayer&amp;at_brand=m0032x9b&amp;at_ptr_name=bbc&amp;at_ptr_type=media&amp;at_format=image&amp;at_objective=consumption&amp;at_link_title=Wildfire_A_Warning_from_the_Midlands_news_rail&amp;at_bbc_team=BBC&amp;at_creation=News</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/iplayer/episode/m0032x9b?at_mid=5Ey2ExaRnm&amp;at_campaign=Wildfire_A_Warning_from_the_Midlands_news_rail&amp;at_medium=display_ad&amp;at_campaign_type=owned&amp;at_nation=NET&amp;at_audience_id=SS&amp;at_product=iplayer&amp;at_brand=m0032x9b&amp;at_ptr_name=bbc&amp;at_ptr_type=media&amp;at_format=image&amp;at_objective=consumption&amp;at_link_title=Wildfire_A_Warning_from_the_Midlands_news_rail&amp;at_bbc_team=BBC&amp;at_creation=News#6</guid>
+            <pubDate>Fri, 16 Oct 2026 05:00:00 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/dec4/live/b6283de0-c89c-11f1-9a39-31b474234113.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Ranking the Premier League's all-time greatest super subs  ]]></title>
+            <description><![CDATA[Some players are destined to make their biggest impact off the bench, but who are the top 10 Premier League super subs of all time?]]></description>
+            <link>https://www.bbc.co.uk/sport/football/articles/cqn73xe5eelgo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/sport/football/articles/cqn73xe5eelgo#8</guid>
+            <pubDate>Fri, 16 Oct 2026 21:15:47 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/ebe8/live/306d9e20-c946-11f1-94af-5f148d758fe7.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Do Manchester City have any grounds to win their appeal?]]></title>
+            <description><![CDATA[Manchester City face "substantial hurdles" to overcome if they are to have any chance of winning their appeal after being found guilty of breaking the Premier League's financial rules, a leading lawyer has told BBC Sport.]]></description>
+            <link>https://www.bbc.co.uk/sport/football/articles/c6je5lwxk5l0o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/sport/football/articles/c6je5lwxk5l0o#8</guid>
+            <pubDate>Fri, 16 Oct 2026 16:17:01 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/ee2f/live/cb7000d0-b9aa-11f1-8a1a-0176f978c211.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Former Sale Sharks lock Andrews dies at team hotel in La Rochelle]]></title>
+            <description><![CDATA[Hyron Andrews dies at his Johannesburg Lions' team hotel before their Champions Cup match at La Rochelle on Saturday.]]></description>
+            <link>https://www.bbc.co.uk/sport/rugby-union/articles/cqdjvxynj2kyo?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/sport/rugby-union/articles/cqdjvxynj2kyo#8</guid>
+            <pubDate>Fri, 16 Oct 2026 14:33:04 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/002b/live/fb4e94e0-c96f-11f1-80fc-ab418b149008.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Does Scott's Disney+ exit unmask wider issue in coverage of women's game?]]></title>
+            <description><![CDATA[Alex Scott's sudden departure from her Disney+ presenter role reveals a pressing challenge for broadcasters of women's football.]]></description>
+            <link>https://www.bbc.co.uk/sport/football/articles/cm3wv4ej7lv2o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/sport/football/articles/cm3wv4ej7lv2o#8</guid>
+            <pubDate>Fri, 16 Oct 2026 15:49:55 GMT</pubDate>
+            <media:thumbnail width="240" height="134" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/198d/live/498a8450-c94f-11f1-9a39-31b474234113.jpg"/>
+        </item>
+        <item>
+            <title><![CDATA[Underdogs? We like that tag, says England captain Williams]]></title>
+            <description><![CDATA[Captain George Williams says England will relish their "underdog" tag when they take on a powerful Tonga side in their World Cup opener in Perth on Saturday.  ]]></description>
+            <link>https://www.bbc.co.uk/sport/rugby-league/articles/cx7vprd744y9o?at_medium=RSS&amp;at_campaign=rss</link>
+            <guid isPermaLink="false">https://www.bbc.co.uk/sport/rugby-league/articles/cx7vprd744y9o#8</guid>
+            <pubDate>Fri, 16 Oct 2026 13:26:51 GMT</pubDate>
+            <media:thumbnail width="240" height="135" url="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/5dce/live/6900c740-c963-11f1-bc2e-018d645d8d21.jpg"/>
+        </item>
+    </channel>
+</rss>

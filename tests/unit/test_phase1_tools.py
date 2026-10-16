@@ -17,21 +17,37 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("port", [None, "8787"])
-async def test_speech_control_can_use_development_service_without_touching_live_service(modules, monkeypatch, port):
-    if port is None:
-        monkeypatch.delenv("REACHY_TOOLS_CONTROL_PORT", raising=False)
-    else:
-        monkeypatch.setenv("REACHY_TOOLS_CONTROL_PORT", port)
+@pytest.mark.parametrize(
+    ("start", "saved", "args", "sets", "result"),
+    [
+        (88, None, {"enabled": False}, [0], {"enabled": False, "volume": 0}),
+        (0, 88, {"enabled": True}, [88], {"enabled": True, "volume": 88}),
+        (0, None, {"enabled": True}, [70], {"enabled": True, "volume": 70}),
+        (55, 88, {"enabled": True}, [], {"enabled": True, "volume": 55}),
+        (0, None, {}, [], {"enabled": False, "volume": 0}),
+    ],
+)
+async def test_speech_control_mutes_with_volume_zero_and_restores_level(
+    modules, monkeypatch, tmp_path, start, saved, args, sets, result
+):
+    monkeypatch.setenv("REACHY_TOOLS_STATE_DIR", str(tmp_path))
+    if saved is not None:
+        (tmp_path / "speaker_restore.json").write_text(json.dumps({"volume": saved}))
+    volume = {"level": start}
     seen = []
 
     def respond(request, timeout):
-        seen.append(request.full_url)
-        return io.BytesIO(b'{"enabled": false}')
+        assert request.full_url.startswith("http://127.0.0.1:8000/api/volume/")
+        if request.data:
+            volume["level"] = json.loads(request.data)["volume"]
+            seen.append(volume["level"])
+        return io.BytesIO(json.dumps({"volume": volume["level"]}).encode())
 
     monkeypatch.setattr(modules.speech_control.urllib.request, "urlopen", respond)
-    assert await modules.speech_control.SpeechControl()(None) == {"enabled": False}
-    assert seen == [f"http://127.0.0.1:{port or '8767'}/state"]
+    assert await modules.speech_control.SpeechControl()(None, **args) == result
+    assert seen == sets
+    if args.get("enabled") is False:
+        assert json.loads((tmp_path / "speaker_restore.json").read_text()) == {"volume": start}
 
 
 @pytest.fixture

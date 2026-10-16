@@ -1,21 +1,24 @@
 # Phase 2: implementation plan
 
-**Not built.** Previously authorised; no implementation or deployment is performed by this documentation edit.
-Functional contract and acceptance: [roadmap P2-1–P2-6](roadmap.md#phase-2-requirements).
+**Built 2026-10-17:** all four tools, 186 unit tests. weather and news live in Standard; web_search and
+read_article await the Tavily key. Requirements and acceptance: [roadmap P2-1–P2-6](roadmap.md#phase-2-requirements).
+Supersedes the hosted-service design (private Space, service credential, adapter layer): none of it is needed.
 
-| Roadmap IDs | Proposed implementation |
-|---|---|
-| P2-1 | `public_tools/search.py`: direct Tavily HTTP; `reading.py`: harness extraction + trafilatura |
-| P2-2 | `weather.py`: Open-Meteo, reading the canonical location through the adapter |
-| P2-3 | `news.py`: BBC RSS plus topic search; bounded selection/article cache owned outside reloaded tool instances |
-| P2-4 | Private HF Docker Space API; no dependency on a running Mac |
-| P2-5 | `network.py`: validated public-IP resolution/pinning and bounded fetching; HF Secrets and private robot config |
-| P2-6 | `setup.py`: private credential prompts, deploy/configure/verify; stock replacement after acceptance |
+| Roadmap IDs | Robot tool file | Provider |
+|---|---|---|
+| P2-1 | `robot_tools/web_search.py` | Tavily Search API |
+| P2-2 | `robot_tools/read_article.py` | Tavily Extract API |
+| P2-3 | `robot_tools/weather.py` | UK Met Office model (`ukmo_seamless`) via Open-Meteo; Open-Meteo geocoding (no key) |
+| P2-4 | `robot_tools/news.py` | BBC RSS, Tavily topic search |
+| P2-5 | All of the above | — |
 
-`public_tools/api.py` supplies validated routes. `robot_tools/public_info.py` is the stdlib adapter.
-These paths are proposed; the modules do not exist. The conversation model answers from returned evidence,
-without another agent loop. Review app context ownership/reload interfaces before selecting the cache owner.
+Each file is self-contained: the app loads external tools by file path, so tools cannot import a shared
+helper. Each carries a small stdlib HTTPS helper (fixed host, timeout, size cap, JSON, clear errors).
+The Tavily key is read from `$REACHY_TOOLS_STATE_DIR/tavily_key` (0600). The news selection is stored in
+`$REACHY_TOOLS_STATE_DIR/news_selection.json`, so numbering survives tool reloads. Tests mock HTTP.
 
-Execution order: service + adapter → combined unit/contract checks → local real-provider checks →
-credential setup/hosted deployment → roadmap acceptance. Distinguish keyed checks from offline coverage.
-Scanning, alignment, presence refresh and home/media integrations remain in the backlog, outside Phase 2.
+Pollen's built-in search/weather are preinstalled remote tool Spaces (`pollen-robotics/reachy-mini-search-tool`,
+`pollen-robotics/reachy-mini-weather-tool`); P2-6 removes them from the tool selection after acceptance.
+
+Order: weather (no key) → web_search → read_article → news → unit tests throughout → key placed by
+Simon → live provider checks → enable in development → acceptance → remove Pollen's built-in search/weather.

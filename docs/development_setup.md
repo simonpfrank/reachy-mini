@@ -9,11 +9,10 @@ Repository: `/home/pollen/projects/reachy-tools`. Documentation index: [README](
    `ssh -i ~/.ssh/reachy_ed25519 pollen@192.168.0.15` (use the current IP if changed).
 2. Open the repository; select `.venv/bin/python` and install the recommended remote Python/debugger extensions.
 3. For development hardware use, stop the dashboard conversation app first, leaving the daemon running.
-4. Run **Reachy: conversation + runtime** with F5; stop the whole compound afterwards.
+4. Run **Reachy: conversation app** with F5; stop it afterwards.
 5. Forward 7860 for the conversation UI and 8710 for the optional **Reachy: telemetry hub**.
 
-Do not run two conversation apps or competing motion writers. The everyday runtime can stay up on its
-separate ports. **Reachy: conversation app** alone needs its runtime already running.
+Do not run two conversation apps or competing motion writers.
 
 ## Environments and ports
 
@@ -21,15 +20,12 @@ separate ports. **Reachy: conversation app** alone needs its runtime already run
 |---|---|---|
 | Interpreter | `/venvs/apps_venv/bin/python` | Project `.venv/bin/python` |
 | External tools | `/home/pollen/reachy_tools/` | Project `robot_tools/` |
-| Runtime source | `/home/pollen/reachy_tools_runtime/conversation_runtime.py` | Project `robot_tools/conversation_runtime.py` |
-| Configuration | Normal dashboard configuration, including `/venvs/.env` | Project `.env` and `.development/runtime.json` |
-| Relay/control ports | 8766/8767 | 8786/8787 |
+| Configuration | Normal dashboard configuration, including `/venvs/.env` | Project `.env` |
 | Instance/tool state | App config and `~/.config/reachy_tools/` | `~/.local/share/reachy-tools-dev/` |
 
-`.env.example` records development settings. Actual `.env`, runtime configuration and mutable state are
+`.env.example` records development settings. Actual `.env` and mutable state are
 excluded from Git. `AUTOLOAD_EXTERNAL_TOOLS=0` avoids directory-wide discovery. Editing project tool
-source does not automatically update the everyday installed copies. The everyday relay is supervised by
-`reachy-tools-runtime.service`; development processes are launched on demand.
+source does not automatically update the everyday installed copies. There is no relay (retired 2026-10-16).
 
 **Versions, 2026-10-16:** dashboard app 1.1.1 / SDK 1.12.0. `pyproject.toml` and `uv.lock` pin hotfix
 revision `66141f689e405ae404a5761186057dff183b4f45` (1.1.1); the development `.venv` is still 1.1.0 until synced.

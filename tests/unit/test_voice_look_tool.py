@@ -2,7 +2,6 @@
 
 import asyncio
 import importlib.util
-import io
 import math
 import sys
 import threading
@@ -29,49 +28,19 @@ def runtime(monkeypatch):
     deps = types.SimpleNamespace(
         movement_manager=types.SimpleNamespace(get_status=lambda: status, queue_move=Mock()), reachy_mini=Mock()
     )
-    state = {"voice_enabled": True, "speaking": False}
-    heartbeats = []
-
-    def request(route, payload=None):
-        if route == "/voice":
-            state["voice_enabled"] = payload["enabled"]
-        if route == "/heartbeat":
-            heartbeats.append(payload.copy())
-        return state.copy()
-
+    state = {"speaking": False}
     loaded = []
 
-    def load(*, mock_runtime=True):
+    def load():
         spec = importlib.util.spec_from_file_location(f"_stock_voice_test_{len(loaded)}", TOOL)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        if mock_runtime:
-            monkeypatch.setattr(module, "runtime_request", request)
         monkeypatch.setattr(module, "POLL_S", 0.001)
         monkeypatch.setattr(module, "_read_doa", lambda: None)
         loaded.append(module)
         return module
 
-    return deps, load, state, status, heartbeats
-
-
-@pytest.mark.parametrize("port", [None, "8787"])
-def test_voice_control_can_use_development_service_without_touching_live_service(runtime, monkeypatch, port):
-    _, load, *_ = runtime
-    module = load(mock_runtime=False)
-    if port is None:
-        monkeypatch.delenv("REACHY_TOOLS_CONTROL_PORT", raising=False)
-    else:
-        monkeypatch.setenv("REACHY_TOOLS_CONTROL_PORT", port)
-    seen = []
-
-    def respond(request, timeout):
-        seen.append(request.full_url)
-        return io.BytesIO(b'{"voice_enabled": true}')
-
-    monkeypatch.setattr(module.urllib.request, "urlopen", respond)
-    assert module.runtime_request("/state") == {"voice_enabled": True}
-    assert seen == [f"http://127.0.0.1:{port or '8767'}/state"]
+    return deps, load, state, status
 
 
 def test_import_and_reload_have_no_worker_side_effects(runtime, monkeypatch):
@@ -84,12 +53,12 @@ def test_import_and_reload_have_no_worker_side_effects(runtime, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_one_app_owned_task_survives_tool_reload_and_stops_cleanly(runtime):
-    deps, load, state, status, heartbeats = runtime
+    deps, load, *_ = runtime
     first = asyncio.create_task(load().VoiceLook()(deps, enabled=True))
     try:
         for _ in range(20):
             await asyncio.sleep(0.005)
-            if heartbeats:
+            if getattr(deps.movement_manager, "_stock_voice_follower", None):
                 break
         owner = deps.movement_manager._stock_voice_follower
         assert owner.task is first and owner.running
@@ -100,8 +69,6 @@ async def test_one_app_owned_task_survives_tool_reload_and_stops_cleanly(runtime
         assert result == {"enabled": False, "running": False}
         await first
         assert not owner.running
-        assert {item["worker"] for item in heartbeats} == {owner.worker}
-        assert heartbeats[-1]["running"] is False
     finally:
         first.cancel()
         await asyncio.gather(first, return_exceptions=True)
@@ -109,14 +76,29 @@ async def test_one_app_owned_task_survives_tool_reload_and_stops_cleanly(runtime
 
 @pytest.mark.asyncio
 async def test_app_manager_cancellation_ends_worker(runtime):
-    deps, load, _, _, heartbeats = runtime
+    deps, load, *_ = runtime
     task = asyncio.create_task(load().VoiceLook()(deps, enabled=True))
     await asyncio.sleep(0.025)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
     assert not deps.movement_manager._stock_voice_follower.running
-    assert heartbeats[-1]["running"] is False
+
+
+@pytest.mark.asyncio
+async def test_robot_speaking_flag_comes_from_the_movement_manager(runtime, monkeypatch):
+    deps, load, *_ = runtime
+    module = load()
+    seen = []
+
+    async def step(follower, state, now):
+        seen.append(state["speaking"])
+        follower.running = False
+
+    monkeypatch.setattr(module.StockFollower, "step", step)
+    deps.movement_manager._is_speaking = True
+    await module.VoiceLook()(deps, enabled=True)
+    assert seen == [True]
 
 
 @pytest.mark.parametrize(
@@ -137,7 +119,7 @@ def test_circular_reachable_turn_planning(runtime, requested, body, expected):
 
 @pytest.mark.asyncio
 async def test_fresh_sustained_evidence_and_gesture_pause(runtime, monkeypatch):
-    deps, load, state, status, _ = runtime
+    deps, load, state, status = runtime
     module = load()
     follower = module.StockFollower(deps)
     follower.running = True
@@ -159,7 +141,7 @@ async def test_fresh_sustained_evidence_and_gesture_pause(runtime, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_retained_heading_restored_through_queue_after_gesture(runtime, monkeypatch):
-    deps, load, state, status, _ = runtime
+    deps, load, state, status = runtime
     module = load()
     follower = module.StockFollower(deps)
     follower.target = (100, 65)
@@ -177,7 +159,7 @@ async def test_retained_heading_restored_through_queue_after_gesture(runtime, mo
 
 @pytest.mark.asyncio
 async def test_robot_output_is_not_used_as_voice_evidence(runtime, monkeypatch):
-    deps, load, state, _, _ = runtime
+    deps, load, state, _ = runtime
     module = load()
     follower = module.StockFollower(deps)
     reading = Mock(side_effect=AssertionError("Must not sample robot speech"))

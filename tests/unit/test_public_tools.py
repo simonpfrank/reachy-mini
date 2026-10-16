@@ -1,0 +1,183 @@
+"""Tests for web_search, read_article and news with mocked providers and a recorded BBC feed.
+The conversation app's Tool base only exists on the robot, so a stand-in module is registered before import."""
+
+import asyncio
+import importlib
+import io
+import json
+import sys
+import types
+import urllib.error
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+
+class _StandInTool:
+    name: str
+    description: str
+    parameters_schema: dict[str, Any]
+
+
+_core_tools = types.ModuleType("reachy_mini_conversation_app.tools.core_tools")
+_core_tools.Tool = _StandInTool  # type: ignore[attr-defined]
+_core_tools.ToolDependencies = object  # type: ignore[attr-defined]
+for name in ("reachy_mini_conversation_app", "reachy_mini_conversation_app.tools"):
+    sys.modules.setdefault(name, types.ModuleType(name))
+sys.modules.setdefault("reachy_mini_conversation_app.tools.core_tools", _core_tools)
+
+from robot_tools import news, read_article, web_search  # noqa: E402
+
+BBC_FEED = (Path(__file__).resolve().parents[1] / "data" / "news_bbc_top.xml").read_bytes()
+KEY = "tvly-test-secret"
+
+
+@pytest.fixture
+def web(monkeypatch, tmp_path):
+    """A private key file and fake providers that record each request."""
+    monkeypatch.setenv("REACHY_TOOLS_STATE_DIR", str(tmp_path))
+    key = tmp_path / "tavily_key"
+    key.write_text(KEY + "\n")
+    key.chmod(0o600)
+    calls: list[dict[str, Any]] = []
+    replies: dict[str, Any] = {
+        web_search.SEARCH_URL: {
+            "results": [
+                {"title": "First", "url": "https://example.org/a", "content": "alpha", "published_date": "2026-10-16"},
+                {"title": "Second", "url": "https://example.org/b", "content": "beta"},
+            ]
+        },
+        read_article.EXTRACT_URL: {"results": [{"url": "https://example.org/b", "raw_content": "Full text."}]},
+    }
+
+    def urlopen(request, timeout):
+        url = request.full_url
+        calls.append(
+            {
+                "url": url,
+                "body": json.loads(request.data) if request.data else None,
+                "auth": request.get_header("Authorization"),
+            }
+        )
+        reply = BBC_FEED if url.startswith("https://feeds.bbci.co.uk/") else replies[url]
+        if isinstance(reply, Exception):
+            raise reply
+        return io.BytesIO(reply if isinstance(reply, bytes) else json.dumps(reply).encode())
+
+    for module in (web_search, read_article, news):
+        monkeypatch.setattr(module.urllib.request, "urlopen", urlopen)
+    return types.SimpleNamespace(calls=calls, replies=replies, state=tmp_path, key=key)
+
+
+def test_search_sends_key_privately_and_numbers_results(web):
+    result = web_search.search_payload("UK interest rates October 2026", "week")
+    assert [r["number"] for r in result["results"]] == [1, 2]
+    assert result["results"][0] == {
+        "number": 1,
+        "title": "First",
+        "url": "https://example.org/a",
+        "published": "2026-10-16",
+        "snippet": "alpha",
+    }
+    call = web.calls[0]
+    assert call["auth"] == f"Bearer {KEY}"
+    assert call["body"]["time_range"] == "week" and KEY not in json.dumps(call["body"])
+    saved = json.loads((web.state / "last_results.json").read_text())
+    assert saved["kind"] == "search" and saved["items"][1]["url"] == "https://example.org/b"
+
+
+def test_search_key_must_exist_and_be_private(web):
+    web.key.chmod(0o644)
+    with pytest.raises(RuntimeError, match="private"):
+        web_search.search_payload("anything")
+    web.key.unlink()
+    with pytest.raises(RuntimeError, match="not set up"):
+        web_search.search_payload("anything")
+    assert web.calls == []
+
+
+def test_provider_refusal_is_explicit_and_never_shows_the_key(web):
+    web.replies[web_search.SEARCH_URL] = urllib.error.HTTPError(web_search.SEARCH_URL, 432, "quota", {}, None)
+    with pytest.raises(RuntimeError, match=r"refused the request \(HTTP 432\)") as error:
+        web_search.search_payload("anything")
+    assert KEY not in str(error.value)
+
+
+def test_search_refuses_bad_arguments(web):
+    with pytest.raises(ValueError, match="query"):
+        web_search.search_payload("  ")
+    with pytest.raises(ValueError, match="recent"):
+        web_search.search_payload("x", "decade")
+
+
+def test_read_listed_item_by_number(web):
+    web_search.search_payload("anything")
+    result = read_article.article_payload(number=2)
+    assert web.calls[-1]["url"] == read_article.EXTRACT_URL
+    assert web.calls[-1]["body"]["urls"] == ["https://example.org/b"]
+    assert (result["title"], result["text"], result["truncated"]) == ("Second", "Full text.", False)
+
+
+def test_read_bounds_long_text(web, monkeypatch):
+    monkeypatch.setattr(read_article, "MAX_CHARS", 5)
+    result = read_article.article_payload(url="https://example.org/b")
+    assert (result["text"], result["truncated"]) == ("Full ", True)
+
+
+def test_read_refuses_unknown_number_and_non_web_addresses(web):
+    with pytest.raises(ValueError, match="no item 3"):
+        read_article.article_payload(number=3)
+    with pytest.raises(ValueError, match="http or https"):
+        read_article.article_payload(url="file:///etc/passwd")
+    with pytest.raises(ValueError, match="listed item or a URL"):
+        read_article.article_payload()
+    assert web.calls == []
+
+
+def test_read_reports_unreadable_page(web):
+    web.replies[read_article.EXTRACT_URL] = {"results": [], "failed_results": [{"url": "x", "error": "blocked"}]}
+    with pytest.raises(RuntimeError, match="could not be read: blocked"):
+        read_article.article_payload(url="https://example.org/b")
+
+
+def test_bbc_headlines_skip_videos_and_are_numbered(web):
+    result = news.news_payload()
+    headlines = result["headlines"]
+    assert len(headlines) == news.MAX_HEADLINES
+    assert [h["number"] for h in headlines] == list(range(1, news.MAX_HEADLINES + 1))
+    assert all("/videos/" not in h["url"] and "?" not in h["url"] for h in headlines)
+    assert headlines[0]["source"] == "BBC News" and headlines[0]["published"]
+    assert web.calls[0]["url"] == "https://feeds.bbci.co.uk/news/rss.xml" and web.calls[0]["auth"] is None
+
+
+def test_second_story_survives_tool_reload(web):
+    second = news.news_payload("top")["headlines"][1]
+    reloaded = importlib.reload(read_article)
+    reloaded.urllib.request.urlopen = web_search.urllib.request.urlopen  # same fake provider after reload
+    web.replies[reloaded.EXTRACT_URL] = {"results": [{"url": second["url"], "raw_content": "Story."}]}
+    result = reloaded.article_payload(number=2)
+    assert result["url"] == second["url"] and result["title"] == second["title"]
+
+
+def test_other_topics_use_news_search(web):
+    web.replies[news.SEARCH_URL] = {
+        "results": [{"title": "Rugby", "url": "https://www.example.com/r", "content": "c", "published_date": "d"}]
+    }
+    result = news.news_payload("Rugby World Cup")
+    assert web.calls[0]["body"]["topic"] == "news" and web.calls[0]["auth"] == f"Bearer {KEY}"
+    assert result["headlines"][0] == {
+        "number": 1,
+        "title": "Rugby",
+        "summary": "c",
+        "url": "https://www.example.com/r",
+        "published": "d",
+        "source": "www.example.com",
+    }
+
+
+def test_tools_run_off_the_event_loop(web):
+    assert asyncio.run(news.News()(None, topic="uk"))["topic"] == "uk"
+    assert web.calls[-1]["url"] == "https://feeds.bbci.co.uk/news/uk/rss.xml"
+    assert asyncio.run(web_search.WebSearch()(None, query="q"))["results"]
+    assert asyncio.run(read_article.ReadArticle()(None, number=1))["url"] == "https://example.org/a"

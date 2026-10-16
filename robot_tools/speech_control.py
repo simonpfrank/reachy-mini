@@ -1,7 +1,7 @@
-"""Persistent speech control through the separately supervised loopback realtime relay.
+"""Speaker mute tool: volume 0 through the daemon's volume API is mute; unmute restores the previous level.
 
-The Tool entry point uses no app hooks. SpeechState below retains historical gate regression logic;
-the live gate runs in conversation_runtime.py outside the installed app.
+No relay and no second control: the dashboard slider and volume tool also restore sound.
+SpeechState below retains historical gate regression logic only; it is not used by the tool.
 """
 
 import asyncio
@@ -189,15 +189,14 @@ class SpeechState:
 
 
 class SpeechControl(Tool):  # type: ignore[misc]
-    """Stop current audio and stay quiet, or explicitly restore speaking."""
+    """Mute = speaker volume 0 through the daemon API; unmute = restore the previous level."""
 
     name = "speech_control"
     description = (
-        "Mute or unmute the robot speaker without changing its volume setting. "
-        "enabled=false means silent speaker; conversation, transcripts and all tools continue normally. "
-        "Use for natural requests to shut up, be quiet, stop talking, or mute. "
-        "enabled=true unmutes on requests to speak, talk, resume or unmute. "
-        "Omit enabled to read the actual state."
+        "Mute or unmute the robot speaker. enabled=false sets the speaker volume to 0 (silent); conversation, "
+        "transcripts and all tools continue normally. Use for natural requests to shut up, be quiet, stop talking, "
+        "or mute. enabled=true restores the previous volume on requests to speak, talk, resume, unmute, or when "
+        "the user says you may or are allowed to speak. Omit enabled to read the actual state."
     )
     needs_response = False
     parameters_schema: dict[str, Any] = {
@@ -207,21 +206,44 @@ class SpeechControl(Tool):  # type: ignore[misc]
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
-        """Use the external relay's control API, without injected app state or methods."""
+        """Read or change the speaker volume; the volume itself is the mute state."""
         if "enabled" in kwargs and not isinstance(kwargs["enabled"], bool):
             raise ValueError("enabled must be boolean")
+        return await asyncio.to_thread(set_speaker, kwargs.get("enabled"))
 
-        def request() -> dict[str, Any]:
-            payload = {"enabled": kwargs["enabled"]} if "enabled" in kwargs else None
-            route = "/speech" if payload is not None else "/state"
-            req = urllib.request.Request(
-                f"http://127.0.0.1:{int(os.environ.get('REACHY_TOOLS_CONTROL_PORT', '8767'))}" + route,
-                data=json.dumps(payload).encode() if payload is not None else None,
-                headers={"Content-Type": "application/json"},
-                method="POST" if payload is not None else "GET",
-            )
-            with urllib.request.urlopen(req, timeout=6) as response:  # noqa: S310 -- fixed loopback
-                result: dict[str, Any] = json.load(response)
-            return result
 
-        return await asyncio.to_thread(request)
+DEFAULT_RESTORE_VOLUME = 70
+
+
+def _volume_api(route: str, payload: dict[str, Any] | None = None) -> int:
+    """Call the daemon's volume API; failures reach the caller."""
+    host = os.environ.get("REACHY_HOST", "127.0.0.1")
+    req = urllib.request.Request(
+        f"http://{host}:8000/api/volume/{route}",
+        data=json.dumps(payload).encode() if payload is not None else None,
+        headers={"Content-Type": "application/json"},
+        method="POST" if payload is not None else "GET",
+    )
+    with urllib.request.urlopen(req, timeout=6) as response:  # noqa: S310 -- fixed daemon host
+        return int(json.load(response)["volume"])
+
+
+def restore_path() -> Path:
+    """Remembered speaker level for unmute, outside the repository."""
+    directory = Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
+    return directory / "speaker_restore.json"
+
+
+def set_speaker(enabled: bool | None) -> dict[str, Any]:
+    """Mute by setting volume 0 (remembering the level); unmute by restoring it. None only reads."""
+    volume = _volume_api("current")
+    path = restore_path()
+    if enabled is False and volume > 0:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"volume": volume}))
+        volume = _volume_api("set", {"volume": 0})
+    elif enabled is True and volume == 0:
+        saved = json.loads(path.read_text()).get("volume", 0) if path.exists() else 0
+        volume = _volume_api("set", {"volume": saved if saved > 0 else DEFAULT_RESTORE_VOLUME})
+    logger.info("SPEECH_CONTROL volume=%s", volume)
+    return {"enabled": volume > 0, "volume": volume}

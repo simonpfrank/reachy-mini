@@ -3,10 +3,10 @@
 Current implementation, 2026-10-16. Functional scope: [roadmap](roadmap.md).
 
 ```text
-Robot microphone → conversation app → local relay → hosted HF speech backend
-Robot speaker    ← conversation app ← local relay ← reply audio
-                         │                 ↑
-                         ├─ tools ─────────┘ local HTTP controls
+Robot microphone → conversation app → hosted HF speech backend (Pollen, "deployed" mode)
+Robot speaker    ← conversation app ← reply audio
+                         ├─ tools: today, location, speech_control (volume API), voice_look,
+                         │         weather (Open-Meteo), news (BBC RSS/Tavily), web_search, read_article (Tavily)
                          └─ movement manager → daemon → motors
 
 Hub ← app RPC + daemon state/log WebSockets → browser through SSH forwarding
@@ -14,21 +14,14 @@ Hub ← app RPC + daemon state/log WebSockets → browser through SSH forwarding
 
 | Component | Role |
 |---|---|
-| Daemon, robot port 8000 | Hardware APIs, app launcher, state/log WebSockets and media |
+| Daemon, robot port 8000 | Hardware APIs (including speaker volume), app launcher, state/log WebSockets and media |
 | Official conversation app, port 7860 | Audio pipeline, tools, movement owner and `/rpc` |
-| `conversation_runtime.py` | Transparent realtime relay, speaker switch control and voice-tool bootstrap |
-| External tools | Model-callable adapters; motion goes through the app's movement owner |
+| External tools (`robot_tools/`) | Model-callable, self-contained files; motion goes through the app's movement owner |
 | Hub, loopback 8710 | Aggregates events/state/logs and serves the dashboard |
 | `profiles/` | Workspace link to the app's existing custom personalities |
 
-The app is configured to connect through the relay; stopping it breaks that connection.
-The relay starts `voice_look` through the stock background-tool protocol. `FacingBreath` uses
-`BreathingMove` and the app queue/status interfaces; these dependencies are version-sensitive.
-No installed app patches or second daemon motion writer are part of the current integration.
-The experimental `reachy_hub.look`/`track` runners are separate from the hub and live follower.
-
-STT, LLM and TTS currently run on the hosted backend. Local-backend/private-brain proposals
-are roadmap work, not implemented architecture. Runtime paths/ports: [setup](development_setup.md).
+No relay, installed app patches or second motion writer. `voice_look` reads the movement manager's
+`_is_speaking` flag, which is internal and version-sensitive. STT, LLM and TTS run on the hosted backend.
 
 ## Telemetry interfaces
 
