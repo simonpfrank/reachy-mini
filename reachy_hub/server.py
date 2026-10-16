@@ -12,18 +12,27 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
 from reachy_hub.sources import read_text_websocket, read_websocket
 from reachy_hub.store import Store
+from reachy_hub.utterances import UtteranceError, send_utterance
 
 STATIC = Path(__file__).parent / "static"
 APP_RPC_PORT = 7860
 DAEMON_PORT = 8000
-STATE_QUERY = "frequency=5&with_doa=true&with_imu=true"
+# 20 Hz: the chip's speech flag flickers between syllables, and 5 Hz sampling misses most of it.
+STATE_QUERY = "frequency=20&with_doa=true&with_imu=true"
 # Taps last a few hundredths of a second, so the IMU needs its own fast, IMU-only feed.
 IMU_QUERY = "frequency=50&with_imu=true&with_head_pose=false&with_body_yaw=false&with_antenna_positions=false"
+
+
+class Utterance(BaseModel):
+    """Text to submit as one user turn to the running conversation app."""
+
+    text: str = Field(min_length=1)
 
 
 def _start_feeds(store: Store, host: str, stop: asyncio.Event) -> list[asyncio.Task[None]]:
@@ -72,6 +81,25 @@ def create_app(store: Store, robot_host: str | None) -> FastAPI:
     @app.get("/api/snapshot")
     def snapshot() -> dict[str, Any]:
         return store.snapshot()
+
+    @app.post("/api/events/clear")
+    def clear_events() -> dict[str, int]:
+        return {"cleared": store.clear_events()}
+
+    @app.post("/api/utterances")
+    async def utterance(body: Utterance) -> dict[str, bool]:
+        text = body.text.strip()
+        if not text:
+            raise HTTPException(status_code=422, detail="Enter an instruction first")
+        try:
+            if robot_host is None:
+                raise UtteranceError("No robot is configured for this dashboard", 503)
+            await send_utterance(f"ws://{robot_host}:{APP_RPC_PORT}/rpc", text)
+        except UtteranceError as exc:
+            store.add_utterance(text, error=str(exc))
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        store.add_utterance(text)
+        return {"ok": True}
 
     @app.get("/")
     def page() -> FileResponse:

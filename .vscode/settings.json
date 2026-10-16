@@ -1,0 +1,12 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests/unit"],
+  "python.testing.cwd": "${workspaceFolder}",
+  "remote.restoreForwardedPorts": true,
+  "remote.portsAttributes": {
+    "7860": {"label": "Conversation app", "onAutoForward": "notify"},
+    "8710": {"label": "Telemetry hub", "onAutoForward": "notify"}
+  }
+}

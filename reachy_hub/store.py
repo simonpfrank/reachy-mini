@@ -10,7 +10,7 @@ Usage:
 
 from collections import deque
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from reachy_hub.events import Event, ImuReading, RobotState, event_from_rpc, imu_reading, robot_state_from_full
@@ -18,6 +18,8 @@ from reachy_hub.imu import Tap, TapDetector
 from reachy_hub.logs import event_from_log_line
 
 LEVEL_EVENT = "conversation.level"
+# The chip's speech flag flickers between syllables, so the page shows how often it was on, not its instant value.
+SOUND_WINDOW = timedelta(seconds=2)
 
 
 @dataclass(frozen=True)
@@ -70,15 +72,35 @@ class Store:
         self._speech_peak = 0.0
         self._events: deque[tuple[int, Event]] = deque(maxlen=max_events)
         self._seq = 0
+        self._flags: deque[tuple[datetime, bool]] = deque()  # chip speech flag over the last SOUND_WINDOW
+        self._fresh_sound: tuple[datetime, float] | None = None  # last direction read while the flag was on
 
     @property
     def events(self) -> list[Event]:
         """Events currently held, oldest first."""
         return [event for _, event in self._events]
 
+    def clear_events(self) -> int:
+        """Empty the event list and return how many were removed.
+
+        Robot state, link status and event numbering are kept, so the page carries on seamlessly.
+        """
+        count = len(self._events)
+        self._events.clear()
+        self._stream = None
+        return count
+
     def _append(self, event: Event) -> None:
         self._seq += 1
         self._events.append((self._seq, event))
+
+    def add_utterance(self, text: str, error: str | None = None) -> None:
+        """Record a typed instruction's delivery result in the existing telemetry feed."""
+        data = {"text": text}
+        if error is not None:
+            data["error"] = error
+        kind = "utterance.failed" if error is not None else "utterance.sent"
+        self._append(Event(datetime.now(UTC), "hub", kind, data))
 
     def add_rpc(self, message: object, now: datetime | None = None) -> None:
         """Take one message from an app's ``/rpc``: levels update live values, the rest become events."""
@@ -138,10 +160,28 @@ class Store:
         self._append(Event(s.last, "app", "stream.ended", data))
         self._stream = None
 
-    def set_robot(self, payload: object) -> None:
-        """Replace the robot state with the daemon's latest ``/api/state/full`` payload."""
-        if isinstance(payload, dict):
-            self.robot = robot_state_from_full(payload)
+    def set_robot(self, payload: object, now: datetime | None = None) -> None:
+        """Replace the robot state with the daemon's latest ``/api/state/full`` payload.
+
+        Also tracks the chip's speech flag: its share over the last two seconds, and the last direction read while
+        it was on. The chip repeats its last direction while the flag is off, so only flagged readings are fresh.
+        """
+        if not isinstance(payload, dict):
+            return
+        self.robot = robot_state_from_full(payload)
+        when = now or datetime.now(UTC)
+        if self.robot.speech_detected is None:
+            return
+        self._flags.append((when, self.robot.speech_detected))
+        while when - self._flags[0][0] >= SOUND_WINDOW:
+            self._flags.popleft()
+        if self.robot.speech_detected and self.robot.sound_dir_deg is not None:
+            self._fresh_sound = (when, self.robot.sound_dir_deg)
+
+    def _sound_snapshot(self) -> dict[str, Any]:
+        flag_pct = round(100 * sum(flag for _, flag in self._flags) / len(self._flags)) if self._flags else None
+        when, direction = self._fresh_sound or (None, None)
+        return {"flag_pct": flag_pct, "fresh_dir_deg": direction, "fresh_time": when.isoformat() if when else None}
 
     def add_imu(self, payload: object, now: datetime | None = None) -> None:
         """Take one fast IMU reading: keep it live; on a tap, keep it as last tap and record ``imu.tap``."""
@@ -189,6 +229,8 @@ class Store:
         if getattr(self, attr) == status:
             return
         setattr(self, attr, status)
+        if name == "app" and status != "connected":  # no app, no levels: never show a stale bar
+            self.user_level = self.robot_level = None
         self._append(Event(now or datetime.now(UTC), "hub", "link", {"name": name, "status": status}))
 
     def snapshot(self) -> dict[str, Any]:
@@ -202,6 +244,7 @@ class Store:
             "imu_link": self.imu_link,
             "log_link": self.log_link,
             "imu": self._imu_snapshot(),
+            "sound": self._sound_snapshot(),
             "events": [
                 {"seq": seq, "time": e.time.isoformat(), "source": e.source, "kind": e.kind, "data": dict(e.data)}
                 for seq, e in self._events

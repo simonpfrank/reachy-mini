@@ -2,6 +2,11 @@
 
 Personal organiser voiced by Reachy Mini Wireless. Extend Pollen's conversation app; do not fork it.
 
+Current exception to the earlier implementation claims (2026-10-15): our voice-follow and persistent-quiet
+prototypes depended on direct installed-app edits. Updating to 1.1.0 removed those hooks and broke both features.
+Those patch paths are retired locally. A supported replacement has not been implemented; see
+[update-compatibility.md](update-compatibility.md). Do not reapply patches or add a competing motor writer.
+
 ## Rule
 Private data (email, messages, finances, faces) never leaves the Mac or the LAN.
 
@@ -35,7 +40,8 @@ Brain turns take 4-9 s: persona says "checking" first; on timeout it says the br
 
 ## Our code (this repo)
 - `profiles/`: persona + tool list (external profiles dir)
-- `tools/`: `ask_brain` etc. (external tools dir)
+- `robot_tools/`: external tools; `today`/`location` use the ordinary tool interface. Voice/quiet prototypes
+  require removed hooks and are currently unavailable. `ask_brain` is planned.
 - Pollen's app and SDK installed as dependencies, so upstream updates flow in.
 - `ask_brain` address is config, not hard-coded, so the brain can move between Macs.
 

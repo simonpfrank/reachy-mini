@@ -2,6 +2,10 @@
 
 Sources: Pollen docs (core concepts, media architecture, lifecycle contract, cloud-backend consumer, motors diagnosis), the SDK's `jsonrpc_server.py`, and the conversation app source.
 
+Update audit (2026-10-15): the hub uses public app/daemon interfaces without package edits. Our separate
+voice-follow and quiet prototypes did edit the app and broke after update to 1.1.0; they are not examples of
+supported hooks. Their installers are retired locally. See [update-compatibility.md](update-compatibility.md).
+
 ## 1. How Reachy is put together
 - **Daemon** (on the robot) owns the motors, camera, mic and speaker. API on port 8000: REST plus WebSockets.
 - **App** (on the robot, one at a time), e.g. the conversation app. Every app can serve a JSON-RPC WebSocket at `/rpc`. This is Pollen's designed channel for UIs and clients: ask the app for status, call its methods, and receive the events it pushes. The same channel is reachable remotely through the daemon.
@@ -25,7 +29,8 @@ Sources: Pollen docs (core concepts, media architecture, lifecycle contract, clo
 
 ## 3. Design
 - **Hub on the Mac**: one small Python service that connects to the sources above and serves one dashboard page on localhost. Nothing is installed on the robot for telemetry.
-- **Not log scraping**: the app already publishes structured events on `/rpc`; logs are used only for errors.
+- **Structured events plus logs**: `/rpc` supplies conversation events; logs also supply tool call/results,
+  camera-image metadata and errors. Those log-derived fields depend on message formatting across app updates.
 - **Not WebRTC for telemetry**: it carries audio/video, not what the app decided; the relay allows one viewer; sound level already arrives on `/rpc`.
 
 ```
@@ -38,13 +43,13 @@ Mac:          hub  --->  dashboard (localhost)   <--- SSH stats (WiFi, CPU, temp
 | Need | Mechanism |
 |---|---|
 | Personality, instructions, voice, which tools | Profile folder (`profile.md`) |
-| New abilities, e.g. `ask_brain` | Python tools loaded into the app from an external tools folder. The app only loads it when an environment variable names the folder; how to set that when the daemon starts the app is the open question for step 4 |
-| Make it speak, stop or mute from outside (e.g. a reminder from the brain) | App `/rpc` methods `conversation.say`, `conversation.interrupt`, `conversation.mic` |
-| Move the robot (look, emotions) | Daemon API |
+| New abilities, e.g. `ask_brain` | External Python `Tool.__call__`; directory configured through `/venvs/.env`. No external-tool startup/shutdown or persistent audio gate in the inspected stock 1.1.0 source |
+| Submit text or stop current speech | App `/rpc`: `conversation.say` submits a user text turn and requests a response; `conversation.interrupt` stops the current response, requiring an active backend. Neither sets persistent quiet |
+| Microphone input | `conversation.mic` mutes input; it cannot keep listening for a spoken resume while suppressing output |
+| Move the robot (look, emotions) | External tools should use the app's movement owner; standalone daemon API is available for isolated control. A second daemon writer alongside the app is not a production integration |
 | Our own events in the timeline | Our tools report to the hub |
-| Ruled out | MCP tools (only `https://*.hf.space` allowed, so data would pass through HF); forking the app (lose updates) |
+| Ruled out | Private-data tools through hosted MCP; forks, installed-app edits and runtime monkey-patching. Public-info Space tools remain an available integration |
 
-## 5. Next
-1. Start the conversation app; confirm the `/rpc` events live from the Mac.
-2. Hub v1 + dashboard: state strip + event feed, built test-first.
-3. Resume roadmap step 1 with the dashboard open.
+## 5. Current status
+Hub/dashboard and typed input have already been delivered. The resumed update audit makes no robot changes.
+Voice following and persistent quiet still require a supported repair; telemetry is not an audio or motion gate.

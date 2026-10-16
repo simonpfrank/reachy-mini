@@ -22,8 +22,13 @@
   .value { font-size:17px; font-variant-numeric:tabular-nums; }
   .bar { height:8px; background:var(--line); border-radius:4px; margin:4px 0 6px; }
   .bar > div { height:100%; width:0; background:var(--bar); border-radius:4px; }
-  .tools { display:flex; gap:10px; margin:12px 0 6px; align-items:center; }
-  input[type=text] { flex:1; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); }
+  .tools { display:grid; grid-template-columns:minmax(0, 1fr) auto auto; gap:6px 10px; margin:12px 0 6px; align-items:center; }
+  #utteranceForm { display:contents; }
+  #send { grid-column:2 / -1; justify-self:start; }
+  button { padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); cursor:pointer; }
+  button:hover { border-color:var(--bar); }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=text] { min-width:0; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); }
   #feed { flex:1; min-height:120px; overflow-y:auto; background:var(--card); border:1px solid var(--line); border-radius:8px; }
   table { width:100%; border-collapse:collapse; }
   td { padding:4px 8px; border-top:1px solid var(--line); vertical-align:top; }
@@ -51,10 +56,13 @@
   <div class="card"><div class="label">Motors</div><div class="value" id="motors">-</div></div>
   <div class="card"><div class="label">Head roll / pitch / yaw (°)</div><div class="value" id="head">-</div></div>
   <div class="card"><div class="label">Body yaw (°)</div><div class="value" id="body">-</div></div>
-  <div class="card"><div class="label">Sound direction (° from front, + left)</div>
-    <div class="value"><span id="speechDot" class="dot"></span><span id="sound">-</span></div></div>
-  <div class="card"><div class="label">Sound level: you</div><div class="bar"><div id="userBar"></div></div>
-    <div class="label">Sound level: robot</div><div class="bar"><div id="robotBar"></div></div></div>
+  <div class="card"><div class="label">Chip speech flag: on in last 2 s</div>
+    <div class="value" id="flagPct">-</div><div class="bar"><div id="flagBar"></div></div></div>
+  <div class="card"><div class="label">Chip direction when last flagged (° from front, + left)</div>
+    <div class="value" id="sound">-</div><div class="label" id="soundAge"></div></div>
+  <div class="card"><div class="label">Mic level (app): you</div><div class="bar"><div id="userBar"></div></div>
+    <div class="label">Speaker level (app): robot</div><div class="bar"><div id="robotBar"></div></div>
+    <div class="label" id="levelNote"></div></div>
 </section>
 
 <div class="group">IMU (head; directions in sensor axes, not yet calibrated to the robot's front)</div>
@@ -67,8 +75,13 @@
 </section>
 
 <div class="tools">
+  <form id="utteranceForm" aria-label="Send a user utterance">
+    <input type="text" id="utterance" placeholder="Send an instruction as text" aria-label="Instruction" required autocomplete="off">
+    <button id="send" type="submit" disabled>Send</button>
+  </form>
   <input type="text" id="filter" placeholder="Filter events (e.g. tool, error, transcript, tap)">
   <label><input type="checkbox" id="pause"> Pause</label>
+  <button id="clear" type="button">Clear log</button>
 </div>
 <div id="feed"><table><tbody id="rows"></tbody></table></div>
 
@@ -76,6 +89,7 @@
 const $ = (id) => document.getElementById(id);
 const fmt = (v) => (v === null || v === undefined ? "-" : v);
 let lastSeq = 0;
+let sending = false;
 
 function link(dotId, textId, status) {
   $(textId).textContent = status;
@@ -113,11 +127,18 @@ function render(s) {
   $("motors").textContent = fmt(r.motor_mode);
   $("head").textContent = `${fmt(r.head_roll_deg)} / ${fmt(r.head_pitch_deg)} / ${fmt(r.head_yaw_deg)}`;
   $("body").textContent = fmt(r.body_yaw_deg);
-  $("sound").textContent = fmt(r.sound_dir_deg);
-  $("speechDot").classList.toggle("on", r.speech_detected === true);
+  const snd = s.sound;
+  $("flagPct").textContent = snd.flag_pct === null ? "-" : `${snd.flag_pct}%`;
+  $("flagBar").style.width = (snd.flag_pct || 0) + "%";
+  const age = snd.fresh_time ? (Date.now() - new Date(snd.fresh_time).getTime()) / 1000 : null;
+  $("sound").textContent = fmt(snd.fresh_dir_deg);
+  $("sound").style.opacity = age !== null && age < 2 ? 1 : 0.35;  // grey once stale
+  $("soundAge").textContent = age === null ? "never flagged" : `${age.toFixed(1)} s ago`;
   $("temp").textContent = fmt(r.imu_temp_c);
+  const appOn = s.app_link === "connected";
   $("userBar").style.width = Math.min(100, (s.user_level || 0) * 100) + "%";
   $("robotBar").style.width = Math.min(100, (s.robot_level || 0) * 100) + "%";
+  $("levelNote").textContent = appOn ? "" : "app not running: no levels";
   const imu = s.imu.latest, tap = s.imu.last_tap;
   $("imuTilt").textContent = imu ? `${imu.tilt_deg}° toward ${imu.tilt_dir_deg}°` : "-";
   $("imuMotion").textContent = imu ? imu.motion_dps : "-";
@@ -135,7 +156,41 @@ async function poll() {
   catch (_) { ["robot", "app", "imu", "log"].forEach((n) => link(n + "Dot", n + "Link", "hub not responding")); }
   setTimeout(poll, 200);
 }
+$("clear").addEventListener("click", async () => {
+  await fetch("/api/events/clear", { method: "POST" });
+  $("rows").innerHTML = "";
+});
 $("filter").addEventListener("input", () => document.querySelectorAll("#rows tr").forEach(applyFilter));
+$("utterance").addEventListener("input", () => {
+  $("utterance").setCustomValidity("");
+  $("send").disabled = sending || !$("utterance").value.trim();
+});
+$("utteranceForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = $("utterance");
+  const original = input.value;
+  const text = original.trim();
+  if (sending || !text) return;
+  sending = true;
+  $("send").disabled = true;
+  $("send").textContent = "Sending…";
+  try {
+    const response = await fetch("/api/utterances", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Instruction could not be sent");
+    if (input.value === original) input.value = "";
+  } catch (error) {
+    input.setCustomValidity(error.message || "Cannot reach the telemetry server");
+    input.reportValidity();
+  } finally {
+    sending = false;
+    $("send").textContent = "Send";
+    $("send").disabled = !input.value.trim();
+    input.focus();
+  }
+});
 poll();
 </script>
 </body>

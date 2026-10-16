@@ -1,5 +1,6 @@
 import json
-from datetime import UTC, datetime
+import math
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from reachy_hub.store import Store
@@ -136,7 +137,8 @@ def test_snapshot_is_json_ready() -> None:
         "seq": 1, "time": NOW.isoformat(), "source": "app", "kind": "conversation.turn", "data": {"state": "listening"}
     }
     assert set(snap) == {
-        "robot", "user_level", "robot_level", "app_link", "robot_link", "imu_link", "log_link", "imu", "events"
+        "robot", "user_level", "robot_level", "app_link", "robot_link", "imu_link", "log_link", "imu", "sound",
+        "events",
     }
 
 
@@ -191,3 +193,47 @@ def test_speech_stopped_without_start_gives_no_summary() -> None:
     store = Store()
     store.add_rpc(_activity("user_speech_stopped"), NOW)
     assert [e.kind for e in store.events] == ["conversation.activity"]
+
+
+def test_clear_events_empties_the_list_but_keeps_state_and_numbering() -> None:
+    store = Store()
+    store.set_robot({"control_mode": "enabled", "timestamp": "t"})
+    store.add_rpc(_note("conversation.turn", state="speaking"), NOW)
+    assert store.clear_events() == 1
+    assert store.events == []
+    assert store.robot is not None
+    store.add_rpc(_note("conversation.turn", state="listening"), NOW)
+    assert store.snapshot()["events"][0]["seq"] == 2
+
+
+def _doa_state(angle_rad: float, speech: bool) -> dict[str, object]:
+    return {"control_mode": "enabled", "timestamp": "t", "doa": {"angle": angle_rad, "speech_detected": speech}}
+
+
+def test_sound_flag_share_covers_the_last_two_seconds() -> None:
+    store = Store()
+    for tenth in range(40):  # 4 s at 10 Hz; flag on only in the last second
+        when = NOW + timedelta(seconds=tenth / 10)
+        store.set_robot(_doa_state(1.57, tenth >= 30), when)
+    assert store.snapshot()["sound"]["flag_pct"] == 50
+
+
+def test_sound_direction_is_the_last_flagged_reading_not_the_frozen_value() -> None:
+    store = Store()
+    store.set_robot(_doa_state(math.pi / 2 + 0.5, True), NOW)
+    store.set_robot(_doa_state(math.pi / 2, False), NOW + timedelta(seconds=3))
+    sound = store.snapshot()["sound"]
+    assert sound["fresh_dir_deg"] == -28.6
+    assert sound["fresh_time"] == NOW.isoformat()
+
+
+def test_sound_summary_is_empty_before_any_reading() -> None:
+    assert Store().snapshot()["sound"] == {"flag_pct": None, "fresh_dir_deg": None, "fresh_time": None}
+
+
+def test_levels_are_cleared_when_the_app_disconnects() -> None:
+    store = Store()
+    store.add_rpc(_note("conversation.level", role="user", rms=0.3), NOW)
+    store.set_link("app", "connected", NOW)
+    store.set_link("app", "disconnected: closed", NOW)
+    assert (store.user_level, store.robot_level) == (None, None)

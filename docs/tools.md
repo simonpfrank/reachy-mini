@@ -1,34 +1,88 @@
 # Where a tool lives
 
-Our tools for Marvin, and how to decide where each one runs. Answer the questions in order; the first "yes" wins.
+Baseline recovery later on 2026-10-15: the supported `profile_tools.save` API removed only `voice_look` and
+`speech_control` from default and Marvin selections, retaining the other tools. Selections were backed up locally
+before changes; the app applied a normal backend reconnect. Post-change RPC confirms backend connected and both
+tools absent; a typed test returned "Conversation is working." Audible playback was not verified. These two
+features are now disabled, not repaired. No installed code was edited. Earlier no-robot-change statements below
+refer to the audit before this recovery. Local Marvin defaults also exclude them to avoid re-enabling on deployment.
 
-| # | Question | If yes |
+Current status (2026-10-15): the app update to 1.1.0 removed our unsupported hooks. **Voice following and
+persistent quiet/resume are broken.** External files and settings survived, but their app integration did not.
+The earlier implementation violated the no-fork/no-app-edits requirement. The patch installers and deployment
+entry point are retired locally. See [the audit](update-compatibility.md) for dependencies, evidence and repair gaps.
+
+## Placement
+
+| Need | Place | Integration |
 |---|---|---|
-| 1 | Does it touch personal data (reminders, calendar, email, messages, contacts, faces)? | **Mac brain** (roadmap step 5, via `ask_brain`, agent-harness). Never the cloud |
-| 2 | Does it need the robot's hardware (camera frames, motors, mics, IMU)? | **On the robot** (external tools folder) |
-| 3 | Does it need a secret (API key) or mildly personal settings (home town)? | **Private HF Space** (MCP tool, secrets as Space settings) |
-| 4 | Is it heavy (big model, slow third-party calls) or useful to others? | **HF Space** (private, or public if sharable) |
-| 5 | Otherwise (small, no network or open no-key services) | **On the robot** |
+| Personal data: reminders, calendar, email, messages, contacts, faces | Mac/LAN brain | Planned `ask_brain`; private data stays local |
+| Robot hardware | External on-robot tool | Supported tool calls; coordinate motion with the app's owner |
+| Provider API keys or public-information service | Private backend HF Space | Backend Secrets; a narrow external tool or supported Space tool integration |
+| Small date/location lookup | External on-robot tool | Standard-library `Tool.__call__`, no package edits |
 
-## The three places
+On-robot tools share the conversation app environment. Keep them standard-library-only and bound network
+calls. Host heavy dependencies separately. Do not use a robot tool to expose broad private harness APIs.
 
-| | On the robot | HF Space (MCP) | Mac brain |
-|---|---|---|---|
-| How the app finds it | `REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY` (set in `/venvs/.env`) + tool name in the persona's list | `tool_spaces.add` (must be `https://*.hf.space`) + name in the persona's list | One on-robot tool (`ask_brain`) calling the Mac |
-| Speed | Fastest, no extra hop | Extra hop; free Spaces sleep (slow first call) | Agent turns take seconds |
-| Rules | Standard library only (shares the app's environment; extra packages could break the app). Short timeouts: a slow tool stalls the app | Keep personal data out | Approvals for anything that changes data |
-| Robot changes | Copy the file | None | Copy `ask_brain` |
+## Current tool status
 
-## Deploying robot tools
-Files in `robot_tools/` -> robot `/home/pollen/reachy_tools/` (scp). `/venvs/.env` holds `REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY=/home/pollen/reachy_tools` (outside the app and daemon installs, so updates keep it). Add the tool name to the persona's `default_tools`, copy the profile, then restart the conversation app (stop + start via the daemon): the app reads `.env` only at start-up. Check the log for "✓ Loaded external tool: <name>".
+| Tool | Status |
+|---|---|
+| `today` | External tool; no injected hooks required. Last live date/time use verified before update |
+| `location` | External tool; no injected hooks required. Provisional Cobham, Surrey, UK, with editable external config |
+| `stay_silent` | Retired; local source removed and robot copy archived during earlier Phase 1. Its intended replacement is currently broken |
+| `voice_look` | Unavailable on stock 1.1.0; requires removed lifecycle/motion hooks. Keep as historical prototype |
+| `speech_control` | Unavailable on stock 1.1.0; requires removed input/output hooks. A saved quiet setting alone does not enforce quiet |
+| Typed telemetry input | Uses public `conversation.say` RPC; no app edits. It is a user text turn requesting a reply |
+| Search/weather/news replacement | Phase 2 authorised, plan only; no service or tool code exists yet |
+| Look-around, alignment, scene memory | Phase 3 plan; local vision, coordinated fresh captures, single motion owner required |
+| Reminders/calendar/email brain | Roadmap step 5; not built |
 
-## Tool list
+The last inspected active persona was `default` (Aiden, language auto), with today/location/voice_look/
+speech_control deliberately enabled by Simon. These tools are not restricted to Marvin. Enabled-tool names
+cannot make missing app hooks work. Existing stock search/weather remain in place.
 
-| Tool | Place | Why | Status |
-|---|---|---|---|
-| `today` (date, weekday, spoken time; UK) | Robot | Q5: tiny, no network. Fixes "2024" searches | Live 2026-10-13; 16 tests |
-| `stay_silent` (end turn with no speech; `needs_response = False`) | Robot | Q5: stops "staying silent" being said aloud | Live 2026-10-13; 3 tests |
-| `look_around` (frames left/centre/right, small, stitched) | Robot | Q2: camera + motors | Idea (roadmap side track) |
-| Web search (replace Pollen's) | Private Space | Q3: search API key | To do |
-| Weather (Open-Meteo, Cobham fixed) | Private Space, or robot | Q3 if home location counts as personal; otherwise Q5 (no key) | To decide |
-| Reminders, calendar, email | Mac brain | Q1 | Step 5 |
+## Installing ordinary external tools
+
+The configured external directory is `/home/pollen/reachy_tools/`, selected through
+`REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY` in `/venvs/.env`, outside the installed app. Copy only actual tool modules
+there; installers and diagnostics are not discoverable tools. Use supported profile/tool configuration interfaces
+to enable ordinary tools. Keep master profiles in external storage; do not write installed package files.
+
+External files/config survived the observed update. Future compatibility still depends on the supported tool API
+and verifying that the app continues to discover the configured directory. App-local profiles/tool selections
+also survived this update, but their long-term durability is not established. Loading a tool is not a functional
+acceptance test, especially for the unsupported prototypes.
+
+## Settings
+
+`location` reads `~/.config/reachy_tools/location.json`. Fields are `place`, `region`, `country`, `country_code`,
+`timezone`, optional paired `latitude`/`longitude`, and `provisional`. The default is explicitly provisional
+Cobham, Surrey, United Kingdom, Europe/London, without guessed coordinates. `REACHY_TOOLS_STATE_DIR` overrides
+the settings directory.
+
+The historical quiet prototype stores `speech.json` in the same directory. That state survives independently
+of the installed app, but stock 1.1.0 does not apply its gate. Do not infer that the robot will remain quiet from
+this file. The prototype's in-memory gates, persistence and explicit resume semantics remain requirements for
+a supported replacement.
+
+## Retired patch paths
+
+`install_voice_look_lifecycle.py` and `install_phase1.py` no longer write installed files. Imported installation
+calls and CLI `--backup-dir` mode always refuse before filesystem access. `--check` is only a historical source
+transformation: results state `retired: true` and `deployment_allowed: false`. It cannot certify compatibility
+or authorise reinstallation. `deploy_phase1.py` always exits without file writes or robot calls.
+
+This retirement applies to the local repository. Old scripts remain staged at
+`/home/pollen/reachy_tools_deploy/voice-look-20261015-lifecycle/` and
+`/home/pollen/reachy_tools_deploy/phase1-20261015/`; do not execute them. The earlier backups remain untouched
+under `/home/pollen/reachy_tools_backups/`. `check_phase1_runtime.py` only transforms temporary copies and tests
+patched classes; passing it does not prove stock-app compatibility or restored live behavior.
+
+The historical voice prototype splits head/body travel within head reach ±35° and body −125/+140°, using the
+app's move queue. Its retained idle pose, speech/motion pauses and automatic startup depended on patched internals.
+Do not replace it with experimental `reachy_hub.look` running daemon motion alongside the conversation app.
+Automatic face following remains deferred. No robot changes were made by the resumed audit.
+
+Public-tool requirements remain in [public-tools.md](public-tools.md); Phase 2 architecture is in
+[phase2.md](phase2.md). These plans must respect the supported interfaces identified by the audit.

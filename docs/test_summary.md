@@ -1,6 +1,25 @@
 # Test Summary
 
-Run: `.venv/bin/python -m pytest` (78 tests: 75 unit, 3 integration on the real robot)
+Current correction (2026-10-15): the earlier Phase 1 live checks below tested patched app 1.0.1. Update to 1.1.0
+removed those unsupported hooks and broke persistent quiet and voice following. Prototype tests do not prove
+stock-app compatibility or current runtime behavior. Patch deployment is retired locally; see
+[update-compatibility.md](update-compatibility.md). No robot changes or new live acceptance checks in this audit.
+
+Historical baseline run: `.venv/bin/python -m pytest` (95 tests: 92 unit, 3 integration on the real robot).
+Later batches below supersede this count; it is not the current full-suite result.
+
+## Update-compatibility audit verification (2026-10-15)
+
+- 113 focused local tests passed: retired installer/deployer entry points, historical voice/quiet logic,
+  ordinary today/location tools, typed input and hub regressions. No robot connection or motor writes.
+- Refusal tests exercise imported APIs and standalone scripts, including absent app paths, existing backups,
+  already-patched source, a meaningless force flag and unchanged files. Read-only checks explicitly report
+  retirement and denied deployment; installer writes reject before source reads or backup creation.
+- Ruff passed for the changed Python implementation/tests; strict mypy passed for the five changed tool/installer/
+  deployer source files. One existing Starlette/AnyIO deprecation warning appeared in pytest.
+- The known experimental tracker failures were not rerun; they are outside this audit. No new live acceptance
+  was performed. These results establish local deployment retirement, not repaired quiet or voice following.
+- Earlier staged robot installers remain unchanged. Local safeguards do not disable those copies.
 
 ## Unit tests
 
@@ -78,9 +97,23 @@ Run: `.venv/bin/python -m pytest` (78 tests: 75 unit, 3 integration on the real 
 - Payload: spoken sentence plus date, weekday, 24-hour time and time zone.
 - The tool is named `today` and returns that payload.
 
-### robot_tools/stay_silent.py (`tests/unit/test_stay_silent_tool.py`; stand-in Tool base)
-- The tool is named `stay_silent` and has `needs_response = False`, so the app does not prompt a spoken reply.
-- It returns status "silent" with the given reason, defaulting to "not addressed".
+### Retired `stay_silent`
+- Removed with its obsolete tests in Phase 1. Persistent quiet/resume is covered below.
+
+### reachy_hub/tracker.py (`tests/unit/test_tracker.py`; synthetic cases plus the real recording `motion_doa_frame.json`)
+- Silence gives no decision; a 0.2 s burst (clap) is ignored; a source already in front (within 8 deg) gives none; wandering angles are not a steady source.
+- A steady talker at 145 deg gives a right turn, capped at 35 deg (head-only reach), flagged clamped.
+- A flickering source (speech flagged about a third of the time) at 77 deg still counts and gives a 13 deg left turn.
+- The turn is relative to where the head already points.
+- Cooldown: no second decision for 3 s, then allowed.
+- A strict threshold (0.5) ignores the flickering background talker but still answers a steady voice.
+- Real recording, loose rule: decisions toward both the video (about 77 deg) and the shouting (141-151 deg), all within the cap, 3 s apart. Strict rule (0.6): only the shouting.
+
+### reachy_hub/track.py (`tests/unit/test_track.py`)
+- A real daemon state sample becomes a sound sample (angle in degrees, speech flag) and the head's turn relative to the body.
+- A state without a sound reading gives no angle.
+- The move request turns the head relative to the body (heading = body + turn) and keeps the body still.
+- Frame verdict: reading moving toward front after a turn = head-relative; unchanged = base-relative; source already near front = inconclusive.
 
 ## Integration tests (real robot, no mocks; skip if unreachable; `REACHY_HOST` overrides 192.168.0.15)
 
@@ -90,3 +123,47 @@ Run: `.venv/bin/python -m pytest` (78 tests: 75 unit, 3 integration on the real 
 ### `tests/integration/test_sources_robot.py`
 - Daemon state stream (`/api/state/ws/full`) gives 3 robot states with a valid motor mode.
 - Conversation app `/rpc` stream gives `conversation.*` events (needs the app running).
+
+## Voice-follow lifecycle repair (2026-10-15)
+
+- 14 new tests pass: app-owned worker startup, concurrent enable, on/off after tool reload, disabled-state retention,
+  stop during an in-flight microphone poll, shutdown after reload, refusal to overlap a stuck worker, and safe installer behavior.
+- Full unit suite: 110 passed; the same 6 pre-existing failures remain in `test_tracker.py` (experimental tracker).
+- Robot-side checks passed using the installed app's real movement manager and file loader with no motor writes.
+- Deployed app logs show one worker surviving a registry reload, clean shutdown, and one worker on the next app launch.
+- Camera face tracking is off; live Marvin tools include `voice_look` and exclude `head_tracking`.
+- These checks establish lifecycle correctness. Accurate physical speaker-facing and behavior after gestures still need live testing.
+
+## Telemetry typed utterances (2026-10-15)
+
+- 14 new tests pass for forwarding, matching RPC acknowledgements amid notifications, rejection, timeout without
+  retry, unavailable app, malformed replies, request validation, and delivery/error events in telemetry.
+- 43 focused hub tests pass; lint and source type checks pass. Full unit suite: 124 passed, same 6 existing
+  experimental tracker failures.
+- Chrome checks passed for equal-width input above filter, pending-send protection, error text retention and
+  successful clearing. Tested desktop and phone-emulation layout.
+- Live test: user text accepted via the hub; `utterance.sent` logged; robot replied "Text input works." and its
+  final transcript appeared in telemetry. Local hub restarted and left running on port 8710.
+
+## Public tools Phase 1 (2026-10-15)
+
+- Combined relevant batch: 103 passed across phase1 tools, voice lifetime/planning/evidence, installers,
+  today and typed-input/hub regressions. No full rerun of the known six experimental tracker failures.
+- Covers explicit quiet/resume recognition, ordinary-input suppression, persistent and unreadable state,
+  failed persistence remaining quiet, blocked old audio after resume, preserved transcription/response cleanup,
+  suppressed function calls, shared location defaults/overrides and invalid coordinates.
+- Voice checks cover circular bearings, useful head/body targets, scaled duration, saturation suppression,
+  sustained evidence, evidence discarded during gestures, and pauses during robot speech/recent playback.
+- Lint passes for all new/changed Phase 1 Python files. Strict type checks pass for the five implementation files
+  (location, speech control, voice following and the two patch installers).
+- Robot-side runtime batch loads the real patched app classes without hardware: 804 head/body samples within
+  limits, held heading after a finite gesture, speaking state with face tracking off, actual final playback gate,
+  pending response suppression, tool gating, restart persistence, resume and normal text injection.
+- Combined live check: all requested tools available; mic unmuted; quiet requests and normal text produce zero
+  assistant audio events; quiet survives tool save/reload and a full app restart; explicit resume succeeds.
+  The subsequent instruction called both location and today, producing the spoken Cobham/current-date answer
+  with seven observed assistant audio events.
+- Live harness retries temporary HTTP 403 while `/rpc` mounts during app startup. Initial run stopped at that
+  readiness error; no app code change was needed. Corrected combined live check passed.
+- Logs show one current follower and real head/body turns; physical speaker-facing accuracy still needs a real
+  speaking session. TV rejection and automatic face following are deferred.

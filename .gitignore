@@ -15,9 +15,11 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
+.workbench/
 
 # Secrets / local config
 .env
+.development/
 agents.local.md
 .claude/settings.local.json
 

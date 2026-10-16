@@ -4,21 +4,32 @@ version = "0.1.0"
 description = "Telemetry hub and dashboard for Reachy Mini: robot state, app events, system stats"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi",
-    "uvicorn",
-    "httpx",
-    "websockets",
+    "fastapi==0.143.2",
+    "uvicorn==0.54.0",
+    "httpx==0.28.1",
+    "websockets==15.0.1",
 ]
 
+[project.scripts]
+reachy = "reachy_workbench.cli:main"
+
 [project.optional-dependencies]
-dev = ["pytest", "pytest-asyncio", "pytest-cov", "ruff", "mypy"]
+dev = [
+    "pytest==9.1.1", "pytest-asyncio==1.4.0", "pytest-cov", "ruff==0.17.0", "mypy==2.4.0",
+    "numpy==2.5.4", "reachy-mini==1.12.0", "uv==0.11.14",
+]
+hosted = ["huggingface-hub==1.33.0"]
+robot = ["reachy-mini-conversation-app==1.1.0", "debugpy>=1.8,<2"]
+
+[tool.uv.sources]
+reachy-mini-conversation-app = { git = "https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app", rev = "231a8591c8a99b7c25bbd62ffb5645f2ace851f3" }
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["reachy_hub*"]
+include = ["reachy_hub*", "reachy_workbench*", "robot_tools*"]
 
 [tool.setuptools.package-data]
 reachy_hub = ["static/*"]
@@ -43,6 +54,6 @@ convention = "google"
 strict = true
 
 [[tool.mypy.overrides]]
-# The conversation app (Tool base for robot_tools) only exists on the robot.
+# The conversation app is provided by the optional robot environment.
 module = ["reachy_mini_conversation_app.*"]
 ignore_missing_imports = true
