@@ -154,9 +154,11 @@ The Mac working tree retains its existing uncommitted changes. A plain clone of 
 would omit untracked work and restore deleted files. The initial transfer therefore included the reviewed
 working source as well as Git history, with the two intentional `stay_silent` deletions preserved.
 
-Source backups belong in Mac `backups/remote-setup-20261016/` and are excluded from Git. Copying the robot's
-private settings, memory and `.env` to that Mac location was blocked by automatic approval review pending
-specific consent. No private configuration backup was transferred; live settings were left unchanged.
+Mac `backups/remote-setup-20261016/` contains the source archives, a complete Git history bundle and,
+after Simon's explicit consent, `robot-live-settings.tar.gz` with the existing tools, runtime, service,
+app settings, personalities, memory and `.env`. The private archive was read back successfully, has
+owner-only permissions and contains no SSH-key paths. The backup directory is excluded from Git;
+`backup-inventory.json` records file sizes and hashes. Live settings were left unchanged.
 
 ## Run, test and debug
 
