@@ -18,7 +18,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import numpy as np
-from install_phase1 import PATCHES, patch_source
+from archive.retired_patches.install_phase1 import PATCHES, patch_source
 
 
 def load(name, path):
@@ -32,7 +32,7 @@ def load(name, path):
 
 async def check(app_dir):
     """Sample turns and simulate gestures, response queues and the final playback gate."""
-    here = Path(__file__).resolve().parent
+    here = Path(__file__).resolve().parents[2] / "robot_tools"
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         for name in PATCHES:

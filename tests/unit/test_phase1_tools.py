@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from robot_tools.install_phase1 import patch_source
-from robot_tools.install_voice_look_lifecycle import patch_main
+from archive.retired_patches.install_phase1 import patch_source
+from archive.retired_patches.install_voice_look_lifecycle import patch_main
 
 ROOT = Path(__file__).resolve().parents[2]
 

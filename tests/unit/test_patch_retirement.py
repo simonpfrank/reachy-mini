@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from robot_tools import deploy_phase1, install_phase1, install_voice_look_lifecycle
+from archive.retired_patches import deploy_phase1, install_phase1, install_voice_look_lifecycle
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -52,7 +52,7 @@ def test_standalone_deployment_refuses_without_touching_files(script, flags, tmp
     sentinel = tmp_path / "keep.txt"
     sentinel.write_text("unchanged")
     result = subprocess.run(  # noqa: S603 -- fixed local scripts, no shell or network
-        [sys.executable, str(ROOT / "robot_tools" / script), *flags],
+        [sys.executable, str(ROOT / "archive" / "retired_patches" / script), *flags],
         cwd=tmp_path, capture_output=True, text=True, timeout=10,
     )
     assert result.returncode != 0

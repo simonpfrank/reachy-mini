@@ -62,13 +62,21 @@ reachy-mini-app-assistant create --template conversation <app_name> <path> --pub
 
 Python apps put web UIs in `static/`. See `skills/create-app.md` for details.
 
-### Always Create plan.md Before Coding
+### Keep Project Documentation in docs/
+
+Keep project documentation, including implementation and component plans, under the repository's `docs/` directory, not in the repository root or source folders such as `robot_tools/` and `reachy_hub/`. Agent instruction files and local session configuration remain in their designated locations.
+
+Functional requirements belong only in `docs/roadmap.md`. Unscheduled work belongs in its backlog.
+Phase plans reference roadmap requirement IDs instead of repeating requirements. See `docs/README.md`
+for document ownership; completed plans are consolidated and removed rather than kept as competing guidance.
+
+### Always Create a Plan Before Coding
 
 Before implementing any app:
-1. Create `plan.md` in the app directory
+1. Create or update the relevant plan under `docs/`, using a descriptive filename such as `docs/phase2.md`
 2. Write your understanding of what the user wants
 3. List your technical approach
-4. Ask clarifying questions and provide answer fields inside `plan.md`
+4. Ask clarifying questions and provide answer fields inside that plan
 5. Wait for answers before coding
 
 ### Keep Notes in agents.local.md
@@ -156,7 +164,7 @@ Browser apps that drive a Reachy Mini over WebRTC, deployed as Hugging Face Spac
 
 These are kept in lockstep with every SDK release. **Mimicking them is the fastest path to a working app.** The 3-file contract, deploy steps, gotchas, and SDK pin all live in [`ts/APP_CREATION_GUIDE.md`](ts/APP_CREATION_GUIDE.md) - read it before scaffolding anything non-trivial.
 
-> **One non-negotiable**: write `plan.md` first (same rule as Python apps) and wait for user approval before scaffolding.
+> **One non-negotiable**: write the relevant plan under `docs/` first (same rule as Python apps) and wait for user approval before scaffolding.
 
 ### Mobile-first by default
 

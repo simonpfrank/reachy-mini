@@ -2647,7 +2647,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.4.0" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "reachy-mini", marker = "extra == 'dev'", specifier = "==1.12.0" },
-    { name = "reachy-mini-conversation-app", marker = "extra == 'robot'", git = "https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app?rev=231a8591c8a99b7c25bbd62ffb5645f2ace851f3" },
+    { name = "reachy-mini-conversation-app", marker = "extra == 'robot'", git = "https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app?lfs=true&rev=66141f689e405ae404a5761186057dff183b4f45" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.17.0" },
     { name = "uv", marker = "extra == 'dev'", specifier = "==0.11.14" },
     { name = "uvicorn", specifier = "==0.54.0" },
@@ -2700,8 +2700,8 @@ wheels = [
 
 [[package]]
 name = "reachy-mini-conversation-app"
-version = "1.1.0"
-source = { git = "https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app?rev=231a8591c8a99b7c25bbd62ffb5645f2ace851f3#231a8591c8a99b7c25bbd62ffb5645f2ace851f3" }
+version = "1.1.1"
+source = { git = "https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app?lfs=true&rev=66141f689e405ae404a5761186057dff183b4f45#66141f689e405ae404a5761186057dff183b4f45" }
 dependencies = [
     { name = "httpx" },
     { name = "httpx2" },

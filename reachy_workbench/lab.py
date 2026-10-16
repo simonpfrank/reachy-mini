@@ -13,7 +13,11 @@ from robot_tools.conversation_runtime import Runtime, State
 
 
 class LocalRuntime(Runtime):
-    """Override only provider allocation; all relay policy/transport is production code."""
+    """Fake provider allocation and speaker hardware; relay transport is production code."""
+
+    async def apply_speaker(self, enabled: bool) -> None:
+        """Simulate the speaker switch without touching real hardware."""
+        self.simulated_speaker_enabled = enabled
 
     async def allocate(self, authorization: str | None) -> tuple[str, None]:
         """Connect to the lab provider without reading a token or making a cloud request."""
@@ -184,28 +188,29 @@ async def demo(state_path: Path, output=print) -> list[str]:
         output(f"PASS {message}")
 
     async with Lab(state_path) as lab:
-        await lab.transcript("you can speak again")
+        await lab.runtime.set_speech(True)
         normal = await lab.turn("hello")
         if normal["audio_markers"] != 1:
             raise RuntimeError("Normal reply did not traverse the relay")
         passed("normal reply crosses the real relay")
-        quiet = await lab.turn("shut up")
-        if not quiet["quiet"] or quiet["audio_markers"] or quiet["actions"]:
-            raise RuntimeError("Quiet command emitted output/actions or failed to persist")
-        passed("quiet command produces no output or action")
-        blocked = await lab.turn("dance")
-        if blocked["audio_markers"] or blocked["actions"]:
-            raise RuntimeError("An ordinary request executed while quiet")
-        passed("ordinary request cannot dispatch an action while quiet")
+        await lab.runtime.set_speech(False)
+        quiet = await lab.turn("hello while muted")
+        if not quiet["quiet"] or quiet["audio_markers"] != 1:
+            raise RuntimeError("Speaker mute must preserve reply traffic")
+        passed("speaker mute preserves audio and transcript transport")
+        action = await lab.turn("dance")
+        if action["actions"] != 1:
+            raise RuntimeError("Speaker mute blocked a tool")
+        passed("tool calls continue while speaker is muted")
         await lab.microphone()
-        passed("microphone transport remains open while quiet")
+        passed("microphone transport remains open while muted")
         await lab.restart()
         if not lab.runtime.state.status()["quiet"]:
-            raise RuntimeError("Quiet state was lost on runtime restart")
-        passed("quiet survives a complete local runtime restart")
-        await lab.transcript("you can speak again")
+            raise RuntimeError("Mute state was lost on runtime restart")
+        passed("speaker mute survives a complete local runtime restart")
+        await lab.runtime.set_speech(True)
         resumed = await lab.turn("hello again")
         if resumed["quiet"] or resumed["audio_markers"] != 1:
-            raise RuntimeError("Explicit resume failed")
-        passed("simulated spoken resume restores subsequent output")
+            raise RuntimeError("Unmute failed")
+        passed("simulated tool unmute restores speaker state")
     return checks

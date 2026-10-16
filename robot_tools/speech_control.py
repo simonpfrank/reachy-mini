@@ -193,9 +193,11 @@ class SpeechControl(Tool):  # type: ignore[misc]
 
     name = "speech_control"
     description = (
-        "Control robot speech. enabled=false immediately stops current audio and stays quiet until explicitly "
-        "told it can speak again. enabled=true resumes speaking only on that explicit request. "
-        "Do not speak an acknowledgement when switching off. Omit enabled to read the actual state."
+        "Mute or unmute the robot speaker without changing its volume setting. "
+        "enabled=false means silent speaker; conversation, transcripts and all tools continue normally. "
+        "Use for natural requests to shut up, be quiet, stop talking, or mute. "
+        "enabled=true unmutes on requests to speak, talk, resume or unmute. "
+        "Omit enabled to read the actual state."
     )
     needs_response = False
     parameters_schema: dict[str, Any] = {

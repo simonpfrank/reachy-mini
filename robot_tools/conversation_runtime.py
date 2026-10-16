@@ -1,4 +1,4 @@
-"""External realtime relay: persistent quiet and app-owned voice-tool startup.
+"""External realtime relay: persistent speaker mute and app-owned voice-tool startup.
 
 Run outside the external tools directory. Uses the app's supported local-backend setting and
 the hosted HF realtime protocol; never imports, patches or writes conversation-app modules.
@@ -12,7 +12,6 @@ import os
 import threading
 import time
 import uuid
-from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -22,22 +21,6 @@ from websockets.asyncio.client import connect
 from websockets.asyncio.server import serve
 
 LOG = logging.getLogger("reachy_tools.runtime")
-
-
-def command_enabled(text: str) -> bool | None:
-    """Recognise explicit control phrases without interpreting quoted/negated mentions."""
-    import re
-
-    normal = " ".join(re.sub(r"[^a-z\s]", "", text.lower()).split())
-    normal = re.sub(r"^(?:(?:marvin|reachy|please|okay|ok|its fine|all right) )+", "", normal)
-    normal = re.sub(r" please$", "", normal)
-    if normal in {"shut up", "be quiet", "stop talking", "stop speaking", "stop answering", "quiet"}:
-        return False
-    if re.fullmatch(
-        r"(?:you (?:can|may) (?:speak|talk)(?: again| now)?|(?:resume|start) (?:speaking|talking)(?: again)?)", normal
-    ):
-        return True
-    return None
 
 
 class State:
@@ -88,6 +71,8 @@ class State:
             return {
                 "enabled": self.enabled,
                 "quiet": not self.enabled,
+                "speaker_muted": not self.enabled,
+                "mode": "speaker_mute",
                 "generation": self.generation,
                 "voice_enabled": self.voice_enabled,
                 "voice_running": time.monotonic() - self.voice_at < 3,
@@ -101,66 +86,56 @@ class State:
 
 
 class Gate:
-    """One connection's response ownership; stopped replies cannot leak after resume."""
+    """Per-session phrase assembly and app-owned voice-tool startup."""
 
     def __init__(self, state: State):
-        """Track response and startup ownership for one websocket session."""
+        """Track startup and incoming phrase fragments."""
         self.state = state
-        self.active = None
-        self.blocked = deque(maxlen=256)
-        self.partial = {}
-        self.skip_responses = 0
         self.local_calls = set()
         self.bootstrapped = False
         self.voice_available = False
 
-    def block_active(self):
-        """Prevent the active response from leaking after either speech transition."""
-        if self.active and self.active not in self.blocked:
-            self.blocked.append(self.active)
-
-    def allow_output(self, event):
-        """Decide whether the current response may produce audio or actions."""
-        identity = event.get("response_id") or self.active
-        return self.state.enabled and identity not in self.blocked
-
 
 class Runtime:
-    """Own relay connections, loopback controls and best-effort immediate playback interruption."""
+    """Relay every conversation event and control only the physical speaker mute."""
 
     def __init__(self, state: State, config: dict[str, Any]):
-        """Own only relay state, never robot motion or installed app modules."""
+        """Own speaker controls independently of app generation and tools."""
         self.state, self.config = state, config
         self.gates = set()
         self.loop = None
+        self.speech_lock = asyncio.Lock()
 
-    async def interrupt(self):
-        """Clear already-buffered playback through the stock app RPC."""
+    async def apply_speaker(self, enabled: bool):
+        """Toggle the ALSA playback switch without changing volume or microphone."""
+        process = await asyncio.create_subprocess_exec(
+            "amixer", "-c", self.config.get("speaker_card", "Audio"),
+            "sset", "PCM,0", "unmute" if enabled else "mute",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
         try:
-            async with connect(
-                self.config.get("app_rpc", "ws://127.0.0.1:7860/rpc"), open_timeout=1, close_timeout=1
-            ) as ws:
-                await ws.send(
-                    json.dumps({"jsonrpc": "2.0", "id": "quiet", "method": "conversation.interrupt", "params": {}})
-                )
-                async with asyncio.timeout(2):
-                    while True:
-                        result = json.loads(await ws.recv())
-                        if result.get("id") == "quiet":
-                            if "error" in result:
-                                LOG.warning("Playback interrupt unavailable; relay output remains gated")
-                            return
-        except Exception as error:
-            LOG.warning("Playback interrupt unavailable: %s; relay output remains gated", type(error).__name__)
+            stdout, stderr = await asyncio.wait_for(process.communicate(), 2)
+        except TimeoutError:
+            process.kill()
+            await process.wait()
+            raise
+        expected = b"[on]" if enabled else b"[off]"
+        if process.returncode or expected not in stdout:
+            raise RuntimeError("Speaker mute switch could not be confirmed")
 
     async def set_speech(self, enabled: bool):
-        """Persist speech mode, gate existing responses and clear buffered playback."""
-        # Block existing responses before either transition, including quiet->resume.
-        for gate in tuple(self.gates):
-            gate.block_active()
-        self.state.set_enabled(enabled)
-        await self.interrupt()
-        return self.state.status()
+        """Mute/unmute the speaker; leave generation, playback queues and tools alone."""
+        async with self.speech_lock:
+            previous = self.state.enabled
+            await self.apply_speaker(enabled)
+            try:
+                self.state.set_enabled(enabled)
+            except Exception:
+                self.state.enabled = previous
+                await self.apply_speaker(previous)
+                raise
+            LOG.info("SPEECH_CONTROL speaker_muted=%s; conversation and tools continue", not enabled)
+            return self.state.status()
 
     async def allocate(self, authorization: str | None):
         """Use the same hosted allocator and authentication as the stock app."""
@@ -211,93 +186,16 @@ class Runtime:
                             item = event.get("item", {})
                             if item.get("type") == "function_call_output" and item.get("call_id") in gate.local_calls:
                                 continue
-                            if item.get("role") == "user":
-                                text = " ".join(
-                                    c.get("text", "") for c in item.get("content", []) if c.get("type") == "input_text"
-                                )
-                                control = command_enabled(text)
-                                if control is not None:
-                                    await self.set_speech(control)
-                                    gate.skip_responses += 1
-                                    continue
-                                if not self.state.enabled:
-                                    gate.skip_responses += 1
-                                    continue
-                        if kind == "response.create" and (not self.state.enabled or gate.skip_responses):
-                            gate.skip_responses = max(0, gate.skip_responses - 1)
-                            identity = "quiet-" + uuid.uuid4().hex
-                            # Satisfy the app's serial response sender without starting model generation.
-                            await downstream.send(
-                                json.dumps(
-                                    {
-                                        "type": "response.created",
-                                        "response": {
-                                            "id": identity,
-                                            "object": "realtime.response",
-                                            "status": "in_progress",
-                                            "output": [],
-                                        },
-                                    }
-                                )
-                            )
-                            await downstream.send(
-                                json.dumps(
-                                    {
-                                        "type": "response.done",
-                                        "response": {
-                                            "id": identity,
-                                            "object": "realtime.response",
-                                            "status": "completed",
-                                            "output": [],
-                                        },
-                                    }
-                                )
-                            )
-                            continue
                         await upstream.send(raw)
 
                 async def server_events():
                     async for raw in upstream:
                         event = json.loads(raw)
                         kind = event.get("type", "")
-                        if kind == "response.created":
-                            gate.active = event["response"]["id"]
-                            if not self.state.enabled:
-                                gate.block_active()
-                                await upstream.send(
-                                    json.dumps({"type": "response.cancel", "response_id": gate.active})
-                                )
-                        if kind.startswith("conversation.item.input_audio_transcription."):
-                            identity = event.get("item_id", "")
-                            if kind.endswith(".delta"):
-                                if len(gate.partial) > 32:
-                                    gate.partial.clear()
-                                text = gate.partial.get(identity, "") + event.get("delta", "")
-                                gate.partial[identity] = text[-2000:]
-                                control = command_enabled(text)
-                                if control is False and self.state.enabled:
-                                    await self.set_speech(False)
-                            else:
-                                gate.partial.pop(identity, None)
-                                control = command_enabled(event.get("transcript", ""))
-                                if control is not None and control != self.state.enabled:
-                                    await self.set_speech(control)
-                        gated = (
-                            kind.startswith(("response.output_audio", "response.output_text"))
-                            or kind == "response.function_call_arguments.done"
-                        )
-                        if gated and not gate.allow_output(event):
-                            if kind == "response.output_audio.delta":
-                                self.state.suppressed_audio += 1
-                            if kind == "response.function_call_arguments.done":
-                                self.state.suppressed_tools += 1
-                            continue
                         if kind == "response.output_audio.delta":
                             self.state.audio_at = time.monotonic()
                             self.state.forwarded_audio += 1
                         await downstream.send(raw)
-                        if kind == "response.done" and event.get("response", {}).get("id") == gate.active:
-                            gate.active = None
                         if (
                             kind == "session.updated"
                             and not gate.bootstrapped
@@ -389,6 +287,7 @@ class Runtime:
 
     async def run(self):
         """Serve loopback websocket and HTTP controls until supervisor shutdown."""
+        await self.apply_speaker(self.state.enabled)
         self.loop = asyncio.get_running_loop()
         http = ThreadingHTTPServer(("127.0.0.1", self.config.get("control_port", 8767)), self.control_handler())
         threading.Thread(target=http.serve_forever, daemon=True).start()

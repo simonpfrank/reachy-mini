@@ -30,15 +30,15 @@ async def test_offline_demo_runs_production_transport_without_cloud(tmp_path, mo
 @pytest.mark.asyncio
 async def test_simulated_voice_quiet_and_restart_are_visible_without_fake_hardware_claims(tmp_path):
     async with Lab(tmp_path / "speech.json") as lab:
-        await lab.transcript("shut up")
+        await lab.runtime.set_speech(False)
         assert lab.runtime.state.status()["quiet"]
-        assert (await lab.turn("dance")) == {"quiet": True, "audio_markers": 0, "actions": 0}
+        assert (await lab.turn("dance")) == {"quiet": True, "audio_markers": 0, "actions": 1}
         await lab.restart()
         assert lab.runtime.state.status()["quiet"]
-        await lab.transcript("you can speak again")
+        await lab.runtime.set_speech(True)
         result = await lab.turn("hello")
         assert result["audio_markers"] == 1 and not result["quiet"]
-        assert lab.interrupts >= 2
+        assert lab.interrupts == 0
         assert not lab.runtime.state.status()["voice_running"]
 
 

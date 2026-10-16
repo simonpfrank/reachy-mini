@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from robot_tools.install_voice_look_lifecycle import install, patch_main
+from archive.retired_patches.install_voice_look_lifecycle import install, patch_main
 
 SOURCE = '''def run():
     from reachy_mini_conversation_app.tools.core_tools import ToolDependencies

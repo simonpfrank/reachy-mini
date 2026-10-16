@@ -19,10 +19,10 @@ dev = [
     "numpy==2.5.4", "reachy-mini==1.12.0", "uv==0.11.14",
 ]
 hosted = ["huggingface-hub==1.33.0"]
-robot = ["reachy-mini-conversation-app==1.1.0", "debugpy>=1.8,<2"]
+robot = ["reachy-mini-conversation-app==1.1.1", "debugpy>=1.8,<2"]
 
 [tool.uv.sources]
-reachy-mini-conversation-app = { git = "https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app", rev = "231a8591c8a99b7c25bbd62ffb5645f2ace851f3" }
+reachy-mini-conversation-app = { git = "https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app", rev = "66141f689e405ae404a5761186057dff183b4f45" }
 
 [build-system]
 requires = ["setuptools>=61.0"]
