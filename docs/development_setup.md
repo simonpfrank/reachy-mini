@@ -19,13 +19,26 @@ Do not run two conversation apps or competing motion writers.
 | Setting | Everyday dashboard | Development |
 |---|---|---|
 | Interpreter | `/venvs/apps_venv/bin/python` | Project `.venv/bin/python` |
-| External tools | `/home/pollen/reachy_tools/` | Project `robot_tools/` |
+| External tools | Project `robot_tools/` | Project `robot_tools/` |
 | Configuration | Normal dashboard configuration, including `/venvs/.env` | Project `.env` |
 | Instance/tool state | App config and `~/.config/reachy_tools/` | `~/.local/share/reachy-tools-dev/` |
+| API keys | `~/.config/reachy_tools/keys/` (shared) | Same |
+
+There is one copy of the tools: the project's `robot_tools/`. `/venvs/.env` holds a single line,
+`REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY=/home/pollen/projects/reachy-tools/robot_tools`, so the everyday app
+loads the checked-out code when it starts or reloads tools. Keep the checked-out branch working; do
+unfinished work on another branch. Never copy tools elsewhere. The former copy, `/home/pollen/reachy_tools/`,
+is no longer loaded (switched 2026-10-17; backup of the previous `/venvs/.env` in
+`~/.local/share/venvs-env.backup-20261017`).
 
 `.env.example` records development settings. Actual `.env` and mutable state are
-excluded from Git. `AUTOLOAD_EXTERNAL_TOOLS=0` avoids directory-wide discovery. Editing project tool
-source does not automatically update the everyday installed copies. There is no relay (retired 2026-10-16).
+excluded from Git. `AUTOLOAD_EXTERNAL_TOOLS=0` avoids directory-wide discovery. There is no relay (retired 2026-10-16).
+
+## API keys
+
+Keys are stored encrypted with `systemd-creds --user`, never in Git or plain text. Manage them on the robot
+from the project folder, without sudo: `scripts/keys.sh add tavily` (paste at the hidden prompt), `check tavily`,
+`list`, `remove tavily`. Details and the accepted limit: [tools: API keys](tools.md#api-keys).
 
 **Versions, 2026-10-16:** dashboard app 1.1.1 / SDK 1.12.0. `pyproject.toml` and `uv.lock` pin hotfix
 revision `66141f689e405ae404a5761186057dff183b4f45` (1.1.1); the development `.venv` is still 1.1.0 until synced.
