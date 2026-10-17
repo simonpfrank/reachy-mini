@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.config/reachy_tools/keys/**)",
+      "Read(**/*.cred)",
+      "Bash(systemd-creds:*)",
+      "Bash(*systemd-creds*decrypt*)"
+    ]
+  }
+}

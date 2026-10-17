@@ -68,10 +68,12 @@ Public tools only, run on the robot. Motto: robust but simple. No private data i
   reloads and reconnects; "the second one" refers to the presented list. Fetch the article (P2-2) before
   detailed answers; distinguish reporting from inference and state incomplete coverage.
 - **P2-5 — Guardrails:** HTTPS to fixed provider endpoints only; timeouts and response-size caps; standard
-  library only. Tavily key in a private 0600 file in the tools state directory, never in source, profiles,
-  prompts or logs. Each search, read and failure is logged. Accepted risk: misuse while unattended.
-- **P2-6 — Setup/replacement:** build and unit-test without a key; Simon places the key in the file. Keep the
-  Pollen's built-in search/weather tools until replacements pass, then remove them from the tool selection.
+  library only. Tavily key encrypted with `systemd-creds --user` and decrypted in memory per request, never
+  in source, profiles, prompts or logs; accepted limit: anything running as `pollen` can decrypt it. Each
+  search, read and failure is logged. Accepted risk: misuse while unattended.
+- **P2-6 — Setup/replacement:** build and unit-test without a key; Simon adds the key with
+  `scripts/keys.sh add tavily`. Keep the Pollen's built-in search/weather tools until replacements pass, then
+  remove them from the tool selection.
 
 ## Backlog — not scheduled
 

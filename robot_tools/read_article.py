@@ -2,13 +2,14 @@
 
 Takes a number from the last web_search or news list, or a URL. The robot never fetches the page
 itself: Tavily does, so no request from the robot can reach the home network. Text is bounded and
-returned as untrusted page content. Key: $REACHY_TOOLS_STATE_DIR/tavily_key (chmod 600).
+returned as untrusted page content. Key: encrypted by systemd for this user (scripts/keys.sh).
 """
 
 import asyncio
 import json
 import logging
 import os
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,6 +20,7 @@ from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 LOG = logging.getLogger(__name__)
 EXTRACT_URL = "https://api.tavily.com/extract"
+SYSTEMD_CREDS = "/usr/bin/systemd-creds"
 TIMEOUT_S = 30
 MAX_BYTES = 4_000_000
 MAX_CHARS = 8000
@@ -29,16 +31,28 @@ def state_dir() -> Path:
     return Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
 
 
+def keys_dir() -> Path:
+    """Encrypted API keys, shared by the development and live tools; managed with scripts/keys.sh."""
+    return Path(os.environ.get("REACHY_TOOLS_KEYS_DIR", "~/.config/reachy_tools/keys")).expanduser()
+
+
 def tavily_key() -> str:
-    """The Tavily key from a private file; never from source, prompts or arguments."""
-    path = state_dir() / "tavily_key"
+    """The Tavily key, decrypted by systemd for this user; never from source, prompts or arguments."""
+    path = keys_dir() / "tavily.cred"
     if not path.exists():
-        raise RuntimeError(f"Reading is not set up: no Tavily key in {path}")
-    if path.stat().st_mode & 0o077:
-        raise RuntimeError(f"Key file {path} must be private (chmod 600)")
-    key = path.read_text().strip()
+        raise RuntimeError("Reading is not set up: no Tavily key (scripts/keys.sh add tavily)")
+    try:
+        result = subprocess.run(  # noqa: S603 -- fixed command, no shell
+            [SYSTEMD_CREDS, "--user", "--name=tavily", "decrypt", str(path), "-"],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(f"Reading key could not be decrypted ({type(error).__name__})") from error
+    key = result.stdout.decode().strip() if result.returncode == 0 else ""
     if not key:
-        raise RuntimeError(f"Key file {path} is empty")
+        raise RuntimeError("Reading key could not be decrypted (scripts/keys.sh check tavily)")
     return key
 
 

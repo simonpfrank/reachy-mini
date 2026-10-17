@@ -29,7 +29,25 @@ The app connects directly to Pollen's backend ("deployed" mode). Mute uses the d
 `REACHY_TOOLS_STATE_DIR` defaults to `~/.config/reachy_tools/`. `location.json` stores place,
 region, country, country_code, timezone, latitude/longitude and provisional status. `speaker_restore.json`
 stores the level unmute restores. `last_results.json` holds the last numbered search/news list.
-`tavily_key` (chmod 600) holds the Tavily key. None of these belong in Git.
+None of these belong in Git.
+
+## API keys
+
+Keys live in `~/.config/reachy_tools/keys/<name>.cred` (`REACHY_TOOLS_KEYS_DIR` overrides it, for
+tests), shared by the development and live tools. Each is encrypted with `systemd-creds --user`: the
+file is unreadable off the robot or by another user, and nothing is decrypted to disk. Tools run
+`/usr/bin/systemd-creds --user --name=<name> decrypt` for each request and keep the key in memory only.
+Accepted limit: anything running as `pollen` can decrypt it. `.claude/settings.json` denies Claude
+reading the files or running the decrypt. Only the Tavily key (`tavily`) is used so far.
+
+Manage keys on the robot, in the project folder; no sudo needed:
+
+| Task | Command |
+|---|---|
+| Add or replace a key (paste it at the hidden prompt) | `scripts/keys.sh add tavily` |
+| Check a key is stored and decrypts (never shown) | `scripts/keys.sh check tavily` |
+| List stored key names | `scripts/keys.sh list` |
+| Delete a key | `scripts/keys.sh remove tavily` |
 
 `robot_tools/` contains the tool files and package marker. The patch helpers were moved to
 `archive/retired_patches/`; installation/deployment write paths remain disabled. The old Mac-specific

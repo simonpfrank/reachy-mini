@@ -14,7 +14,7 @@ Supersedes the hosted-service design (private Space, service credential, adapter
 
 Each file is self-contained: the app loads external tools by file path, so tools cannot import a shared
 helper. Each carries a small stdlib HTTPS helper (fixed host, timeout, size cap, JSON, clear errors).
-The Tavily key is read from `$REACHY_TOOLS_STATE_DIR/tavily_key` (0600). The news selection is stored in
+The Tavily key is stored encrypted ([tools: API keys](tools.md#api-keys)). The news selection is stored in
 `$REACHY_TOOLS_STATE_DIR/news_selection.json`, so numbering survives tool reloads. Tests mock HTTP.
 
 Pollen's built-in search/weather are preinstalled remote tool Spaces (`pollen-robotics/reachy-mini-search-tool`,

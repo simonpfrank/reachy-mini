@@ -2,13 +2,14 @@
 
 Headlines are numbered and saved so "the second one" means the same story after tool reloads and
 reconnects; read_article opens it. Standard library only; HTTPS to fixed hosts with timeouts and
-size caps. Topic searches need the Tavily key in $REACHY_TOOLS_STATE_DIR/tavily_key (chmod 600).
+size caps. Topic searches need the Tavily key, stored encrypted by systemd (scripts/keys.sh).
 """
 
 import asyncio
 import json
 import logging
 import os
+import subprocess
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET  # noqa: S405 -- parses only the fixed BBC feed host
@@ -32,6 +33,7 @@ SECTIONS = {
     "entertainment": "entertainment_and_arts/",
 }
 SEARCH_URL = "https://api.tavily.com/search"
+SYSTEMD_CREDS = "/usr/bin/systemd-creds"
 TIMEOUT_S = 15
 MAX_BYTES = 2_000_000
 MAX_HEADLINES = 8
@@ -42,16 +44,28 @@ def state_dir() -> Path:
     return Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
 
 
+def keys_dir() -> Path:
+    """Encrypted API keys, shared by the development and live tools; managed with scripts/keys.sh."""
+    return Path(os.environ.get("REACHY_TOOLS_KEYS_DIR", "~/.config/reachy_tools/keys")).expanduser()
+
+
 def tavily_key() -> str:
-    """The Tavily key from a private file; never from source, prompts or arguments."""
-    path = state_dir() / "tavily_key"
+    """The Tavily key, decrypted by systemd for this user; never from source, prompts or arguments."""
+    path = keys_dir() / "tavily.cred"
     if not path.exists():
-        raise RuntimeError(f"Topic news is not set up: no Tavily key in {path}")
-    if path.stat().st_mode & 0o077:
-        raise RuntimeError(f"Key file {path} must be private (chmod 600)")
-    key = path.read_text().strip()
+        raise RuntimeError("Topic news is not set up: no Tavily key (scripts/keys.sh add tavily)")
+    try:
+        result = subprocess.run(  # noqa: S603 -- fixed command, no shell
+            [SYSTEMD_CREDS, "--user", "--name=tavily", "decrypt", str(path), "-"],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise RuntimeError(f"Topic news key could not be decrypted ({type(error).__name__})") from error
+    key = result.stdout.decode().strip() if result.returncode == 0 else ""
     if not key:
-        raise RuntimeError(f"Key file {path} is empty")
+        raise RuntimeError("Topic news key could not be decrypted (scripts/keys.sh check tavily)")
     return key
 
 
