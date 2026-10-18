@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from reachy_hub.sources import read_text_websocket, read_websocket
 from reachy_hub.store import Store
-from reachy_hub.utterances import UtteranceError, send_utterance
+from reachy_hub.utterances import UtteranceError, record_typed, send_with_reconnect
 
 STATIC = Path(__file__).parent / "static"
 APP_RPC_PORT = 7860
@@ -94,7 +94,9 @@ def create_app(store: Store, robot_host: str | None) -> FastAPI:
         try:
             if robot_host is None:
                 raise UtteranceError("No robot is configured for this dashboard", 503)
-            await send_utterance(f"ws://{robot_host}:{APP_RPC_PORT}/rpc", text)
+            url = f"ws://{robot_host}:{APP_RPC_PORT}/rpc"
+            await record_typed(url, text)
+            await send_with_reconnect(url, text)
         except UtteranceError as exc:
             store.add_utterance(text, error=str(exc))
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc

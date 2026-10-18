@@ -1,0 +1,5 @@
+# Wake watcher venv (~/venvs/reachy-wake). 0.4.0 is the newest openWakeWord that installs on the robot
+# (aarch64, Python 3.12); its wake-word models are bundled.
+openwakeword==0.4.0
+onnxruntime==1.31.0
+numpy==2.5.4

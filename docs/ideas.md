@@ -40,3 +40,54 @@ CM4: four 1.5-GHz cores, 4 GB RAM, 16 GB flash, no ML accelerator. Face-detectio
 IMX500 replaces the stock camera on the single CSI connector; CM4/SDK compatibility was not established.
 Intel Mac mini lacks MLX; EventKit/Mail require macOS. Pi 5/CalDAV is a possible alternative.
 Synology DS215j was considered for LAN backups, not compute. These are research notes, not deployment decisions.
+
+# behviours ideas
+
+Sound effects
+https://www.trekcore.com/audio/ lots of sounds we should build a library to allow seelction of noise by category of event / actions
+
+Gestures
+simple nod, a side to side sway, or a head tilt roll. There is also a dizzy spin, a stumble and recover, headbanger combo, and interwoven spirals. I can do a sharp side tilt, side peekaboo, a yeah nod, an uh huh tilt, or a neck recoil. There is also a chin lead, groovy sway and roll, chicken peck, side glance flick, polyrhythm combo, grid snap, pendulum swing, and the jackson square.
+
+ thinking, attentive, and uncertain would be the most useful. I also have a confused emotion if a tool returns no results
+
+ Transition thinking and speaking
+
+ ## IMU integration
+ simple taps, tilting with more alarm have different taps as commands
+
+ # Head banging
+ Safe zones collision avoidance map.
+
+ # PIR
+ could work with Pi to wake
+
+ ## Power management
+ Pi to do that.
+
+ # Custom low power mode
+
+ # Weather sensor or darkness or
+ so has knowledge
+
+ ## Triggers and events and hooks
+ look for them
+
+ # loud noises
+ trigger lok about
+
+ # sensors
+ TOF for distance
+ tempaerature
+ ultrasonic
+ Millimtere wave radar
+ ultrasoncis mulitple triangulate
+ infrared
+
+ https://huggingface.co/spaces/pollen-robotics/reachy-mini-chatbox
+
+ Gesture recognition
+
+ AI Camera - live object
+
+

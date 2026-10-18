@@ -56,6 +56,18 @@ def test_cancelled_tool() -> None:
     assert event is not None and (event.kind, event.data) == ("tool.cancelled", {"tool": "dance", "id": "call_1"})
 
 
+def test_our_tools_info_lines_are_kept_as_tool_log() -> None:
+    line = (
+        "2026-10-17T13:00:00+01:00 reachy-mini launcher.sh[914]: reachy_mini.apps.manager.runner - WARNING - "
+        "2026-10-17 13:00:00,250 INFO reachy_mini_conversation_app._external_tools.voice_look:180 | "
+        "VOICE_LOOK turn worker=abc reason=voice heard=+80.0 readings=5 from_head=+0.0 from_body=+0.0 "
+        "head=+80.0 body=+45.0"
+    )
+    event = event_from_log_line(line)
+    assert event is not None and (event.source, event.kind) == ("app", "tool.log")
+    assert event.data["tool"] == "voice_look" and event.data["message"].startswith("VOICE_LOOK turn")
+
+
 SEARCH = "pollen_robotics_reachy_mini_search_tool__search_web"
 
 
@@ -82,7 +94,8 @@ def test_tool_failure_line() -> None:
     )
     event = event_from_log_line(line)
     assert event is not None and (event.kind, event.data) == (
-        "tool.failed", {"tool": "dance", "id": "call_9", "error": "unknown move"}
+        "tool.failed",
+        {"tool": "dance", "id": "call_9", "error": "unknown move"},
     )
 
 

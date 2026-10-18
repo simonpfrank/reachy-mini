@@ -1,0 +1,3 @@
+# Packages the robot tools need in the app environment (/venvs/apps_venv), installed the way Pollen's app
+# manager installs app packages: scripts/tool_deps.sh install. Keep pins identical to pyproject.toml [dev].
+beautifulsoup4==4.14.3

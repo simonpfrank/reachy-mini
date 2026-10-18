@@ -14,6 +14,10 @@ Functional requirements live only here; phase documents describe implementation 
 | 3a | Voice tracking (turn to sound). Measurements: [motion evidence](architecture.md#motion-evidence) | Turns toward Simon speaking from left or right within about a second, using the daemon's direction reading. Does not chase the TV over a 5-minute test: only turn on detected speech, steady direction (~1 s), cooldown, ignore the TV's fixed direction. Front/back: DoA covers a half-circle only (0 left, 90° front or back, 180° right); fine in conversation (person in front); if needed, resolve by turning and re-listening. Dashboard first: held 'last voice heard from X°, n s ago' + recent range | None | ❌ |
 | 3b | Face following (deferred 2026-10-15) | Live with voice-direction following for a while first; keep automatic camera head tracking disabled. Face/person detection during requested look-around scans is still in scope | None: faces stay on Mac/LAN | ⏸ |
 | 4 | Our public tools | Today/location use ordinary external tools; stay_silent retired. Speaker mute and voice following restored. Search/weather/news and local look-around remain; phase assignments below | Public queries to providers; faces stay on Mac/LAN; service-side keys | 🟡 (control restored; phases 2–3 unbuilt) |
+| 4b | Our sleep and wake word | To define before building: [4b](#step-4b--sleep-and-wake-word-to-define) | To define | ❌ |
+| 4c | Room scan | To define before building: [4c](#step-4c--room-scan-to-define) | Images: per 4d | ❌ |
+| 4c2 | Voice following and TV fixes | Faults seen 2026-10-18: [4c2](#step-4c2--voice-following-and-tv-fixes-seen-2026-10-18) | None | ❌ |
+| 4d | Information security levels | To define before step 5: [4d](#step-4d--information-security-levels-to-define). Gate for the private brain | Defines it | ❌ |
 | 5 | Private brain | `ask_brain` (on the robot) calls agent-harness on the Mac; persona says "checking", timeout handled; serious mode: automatic for anything from `ask_brain` (plain, exact read-back, confirm changes) and on request ("serious mode" until "back to normal"); start as a rule in Marvin's profile, switch to a separate plain persona via `personalities.apply` only if the rule proves unreliable (links to step 7 modes); safe slice first: reminders and calendar (today's one thing, what's due, add reminder with approval) | Reminder titles reach HF until step 6. No email/messages | ❌ |
 | 6 | Local backend on the Mac | speech-to-speech on Mac; median end-of-speech to first audio <= 1.5 s good, <= 2.5 s acceptable; Gemma vs Qwen3.5-4B. Gate for email and messages. | None leaves Mac/LAN | ❌ |
 | 7 | Modes and brain-off | General/personal switch; sensible behaviour when the Mac is off | None | ❌ |
@@ -59,27 +63,51 @@ Public tools only, run on the robot. Motto: robust but simple. No private data i
 
 - **P2-1 — Search:** `web_search` calls Tavily directly from the robot. Return title, URL, publication date
   where given and snippet for each result; explicit provider failures. Use C1 so queries carry the right date.
-- **P2-2 — Read:** `read_article` gets readable page text through Tavily Extract; the robot does not fetch
-  article pages itself. Text is bounded, returned as untrusted page content (never instructions) and states
-  when it is partial or unavailable.
+- **P2-2 — Read:** `read_article` fetches the page itself and extracts its text with BeautifulSoup. It also
+  returns the page's links in page order, numbered (`link=N` reads one) and kept apart from the search/news
+  list; the model decides what to offer. Only approved sites are read (`approved_sites.txt`, one per line;
+  a site matches exactly or as a whole-dot subdomain; redirects included). For any other site it fetches
+  nothing and replies `not_approved`; the robot asks the user, naming the site. `approve_site` adds that exact
+  site permanently only if code confirms, from the app's transcript history, that the robot named it after the
+  refusal and the user's next words said yes with no "no". The model cannot approve alone. Accepted risk: another
+  voice (e.g. the TV) saying yes at that moment. Text is bounded, returned as untrusted page content (never
+  instructions) and states when it is partial, refused (with the reason) or unavailable.
 - **P2-3 — Forecasts:** `weather` uses the UK Met Office model through Open-Meteo (no key) and C2; explicit place overrides, today/tomorrow,
   hourly, weekend and seven-day periods, units and provider update time; disambiguate places.
 - **P2-4 — News:** `news` uses BBC RSS plus topic search. Headline numbering survives unrelated calls, tool
   reloads and reconnects; "the second one" refers to the presented list. Fetch the article (P2-2) before
   detailed answers; distinguish reporting from inference and state incomplete coverage.
-- **P2-5 — Guardrails:** HTTPS to fixed provider endpoints only; timeouts and response-size caps; standard
-  library only. Tavily key encrypted with `systemd-creds --user` and decrypted in memory per request, never
+- **P2-5 — Guardrails:** search, weather and news call fixed provider endpoints only. `read_article` fetches
+  public web pages under fixed checks in code: http/https on ports 80/443; no IP-address hosts or local names;
+  every resolved address public, re-checked on each redirect (at most 5), and the connection made to the
+  checked address. Timeouts and response-size caps throughout. Standard library plus BeautifulSoup, installed
+  in the app environment with `scripts/tool_deps.sh install` (pin in `robot_tools/requirements.txt`). Tavily key encrypted with `systemd-creds --user` and decrypted in memory per request, never
   in source, profiles, prompts or logs; accepted limit: anything running as `pollen` can decrypt it. Each
   search, read and failure is logged. Accepted risk: misuse while unattended.
 - **P2-6 — Setup/replacement:** build and unit-test without a key; Simon adds the key with
   `scripts/keys.sh add tavily`. Keep the Pollen's built-in search/weather tools until replacements pass, then
   remove them from the tool selection.
 
-## Backlog — not scheduled
+## Step 4b — Sleep and wake word (to define)
 
-Existing requests and ideas below remain in place. Additional detail consolidated from the removed plans:
+Existing notes, moved here; the requirement is still to be agreed:
 
-### Scanning and positioning (future phase 3 candidates)
+- From step 1: waking by voice from sleep is not covered; the stock app has no wake word.
+- **B-WAKE:** wake word only for sleep, with one classifier thread, cooldown and microphone handoff to conversation;
+  compare platform-specific models and gate background directions. Candidate offline reflex responses need no LLM.
+- Phases: first make sleep and wake work with a built-in wake-word model; then train "hey Reachy".
+- Phase 1 (built 2026-10-18; Simon's live sleep/wake test passed the same day): `sleep` tool starts the `reachy_wake` watcher
+  (`systemd-run --user`), then Pollen's sleep; the watcher listens on the shared mic for "hey mycroft"
+  (openWakeWord 0.4.0, about half of one CPU core) and starts the app with its last-used personality. Other
+  sleep routes need the app started by hand. Setup: [development_setup](development_setup.md#sleep-and-wake-word).
+- Custom wake word ("hey Reachy"): train with varied English accents, including South African, Ghanaian and
+  Zimbabwean, and test with the carers.
+- Anyone may use the wake word: it only starts a conversation. What each person may do is enforced by tools (4d).
+- Later sleep/wake behaviour (not in this step): [B-SLEEPWAKE](#further-candidates).
+
+## Step 4c — Room scan (to define)
+
+Existing notes, moved here; the requirement is still to be agreed:
 
 - **B-SCAN — Scan:** exclusive cancellable app-owned motion; pause following and restore its previous state.
   Overlapping safe body/head yaw poses and pitch bands; settle before each capture and retain actual pose/time.
@@ -88,18 +116,76 @@ Existing requests and ideas below remain in place. Additional detail consolidate
   IDs, angular extents, confidence, first/last seen and source observations. People expire faster than static objects.
   Reset/refresh on changed base placement, not ordinary head movement. Report unseen coverage; never invent objects
   or metric depth. Support scene questions and looking at referenced objects/people using age/confidence.
-- **B-ALIGN — Manual positioning:** relative body-angle turns (including ninety degrees right) move the head with
-  the body; explicit head yaw/pitch/centre commands have defined reference frames. Report requested versus achieved
-  pose after clipping. Manual alignment pauses following and holds idle heading until explicit resume or another
-  positioning request. A move is not a scan: observations require fresh settled frames.
 - **B-PRESENCE — After scanning exists:** invalidate current presence immediately on wake and app/session startup;
   start a fresh observation generation. Keep long-term knowledge separate. Rebuild presence from new scans with
   timestamps/coverage; partial/failed scans leave uncertainty. Old transcripts, names or remembered visitors do
   not prove presence or speaker identity. Require a current introduction/verified evidence for names; ask if unsure.
   Update conversation context and discard results from pre-reset scans. Honour C3; no forced audible greeting.
   Acceptance: visitor A leaves during sleep; wake/restart must not assume A remains, including failed/partial scans.
+- **Vision: `look_around` (expanded 2026-10-15).** Replace the movement-only sweep with safe full body/head yaw
+  coverage and pitch bands. Capture settled frames with actual poses, detect objects/people/faces locally and retain
+  a timestamped angular scene model with lateral/vertical location. Account for unseen regions, moving people,
+  uncertainty and changed base placement. Automatic face following stays deferred. Positioning: B-ALIGN (backlog).
+
+## Step 4c2 — Voice following and TV fixes (seen 2026-10-18)
+
+Speaker muted, TV on, 12:20–12:36. Evidence from the app log:
+
+1. **Following switched itself on.** The backend session dropped at 12:31:26 and reconnected at 12:31:32; at
+   12:31:33 the model called `voice_look(enabled=true)`, because its description says to turn it on at the start
+   of every conversation, and a reconnect looks like a new one. Typing did not trigger it. Fix: an on/off choice
+   survives reconnects, decided in code, not re-asked of the model.
+2. **Violent body swings.** At 12:33:09 the body went from −105° to +140° (245°), and at 12:34:25 back to −109°
+   (249°). A voice heard behind (near ±180°) lies past the body's cable limit (−125°/+140°), so the planner took
+   the long way round for zero aim error. Fix: accept a small aim error at the limit instead of a near-full turn;
+   cap body travel per turn.
+3. **It followed the TV.** All ten turns from 12:31 to 12:36 were during TV speech (transcripts are a TV show),
+   on 3–4 readings each. The 3a requirement to ignore the TV's fixed direction is not met.
+4. **Front/back ambiguity.** Several turns aimed near ±180° (behind); the sound-direction reading covers a
+   half-circle only (3a).
+5. **The model answers the TV.** TV speech becomes user turns, and the model replied to each ("I'm not your
+   accountant…"), using the backend while muted and confusing typed questions. Related: B-AMBIENT ("that's the
+   telly", meeting mode), voice ID (step 9).
+6. **Language misdetected.** TV speech was transcribed as Chinese several times; the transcription language is
+   unset (left as is for now, 2026-10-18).
+7. **Backend session drops** (12:31:26 here; several daily). Pollen's hosted backend; the hub retries typed text once.
+
+## Step 4d — Information security levels (to define)
+
+To be defined before the private brain (step 5), beyond the current rule that private data stays on the Mac/LAN:
+
+- Where memories are stored.
+- Where images are stored.
+- Where the association between an image and a person is stored.
+- A person's right not to be remembered.
+- When video may be recorded (e.g. security after a wake event) versus when a face may be captured for memory.
+- Who can do what: an unidentified person gets public tools only (the default); private tools check a verified
+  identity in code, not the model's word. Needs voice/face ID (step 9).
+- Mixed conversations: switching back and forth between private and public tools in one conversation flow.
+
+Related: cross-cutting constraints above; B-WEBGATE (search queries as an outbound channel) and B-APPROVAL below.
+
+## Backlog — not scheduled
+
+Existing requests and ideas below remain in place. Additional detail consolidated from the removed plans:
+
+### Positioning
+
+- **B-ALIGN — Manual positioning:** relative body-angle turns (including ninety degrees right) move the head with
+  the body; explicit head yaw/pitch/centre commands have defined reference frames. Report requested versus achieved
+  pose after clipping. Manual alignment pauses following and holds idle heading until explicit resume or another
+  positioning request. A move is not a scan: observations require fresh settled frames.
 
 ### Further candidates
+
+- **B-SLEEPWAKE (follows 4b):** aggressive power management, since battery time is short.
+  - Sleep when there is no activity: nobody speaking for a while, nobody in the room (scan), optionally no PIR.
+  - Wake triggers beyond the wake word: loud noise (e.g. a door), PIR, other detectors. A trigger means "someone
+    may be here": wake, check the room, and go back to sleep if nobody is there.
+  - Later, security: noise, look and assess, then act. Recording rules come from 4d.
+  - Behaviour may differ on battery versus charger. Charger detection not found yet (no daemon API, SDK or Linux
+    power-supply device, checked 2026-10-18); research Pollen docs/Discord.
+- **B-CHAT:** a chat app for talking to the robot by text.
 
 - **B-WEBGATE:** if public-tool misuse appears, or before private data shares a context with web content:
   links returned as IDs only, domain allowlist with redirect re-checks, approval tool whose grant is
@@ -118,15 +204,14 @@ Existing requests and ideas below remain in place. Additional detail consolidate
   “that's the telly” direction marking. Candidate ambient map resets on base movement; no-face evidence alone is
   uncertain because TVs show faces. Later gating can use voice ID, wake-word direction or mic-array beam steering.
   Historical graded-glance/cooldown/unwind proposals need review; they are not the current follower specification.
-- **B-WAKE:** wake word only for sleep, with one classifier thread, cooldown and microphone handoff to conversation;
-  compare platform-specific models and gate background directions. Candidate offline reflex responses need no LLM.
 - **B-BACKEND:** configurable brain endpoint/timeout and offline fallback; pluggable STT/LLM/TTS plus fallback chain.
   Validate end-of-turn detection and interrupted/streaming TTS service interfaces. Voice ID results need retesting
   with Reachy's microphone; end-to-end latency includes the LLM stage. Voice-swap relay is a candidate, not a plan.
 - **B-DEPLOY:** reproducible backed-up installation with source/profile/settings rollback and health checks,
   independent companion dependencies, fixed tested revisions and a private source remote. The development lock is
   on 1.1.1 (2026-10-16); environment sync and the reviewed recovery commit remain.
-- **B-HUB:** daemon loop rate/read-write timing/error counts, WiFi signal, CPU, temperature and throttling;
+- **B-HUB:** wake watcher events (wake word heard, app started, false wakes) from `journalctl --user -u reachy-wake`;
+  daemon loop rate/read-write timing/error counts, WiFi signal, CPU, temperature and throttling;
   optional A/V watch/listen panel; follower decisions/reasons, last-heard age/range, ambient direction map and
   lifted/moved detection with recorded DoA/head/body poses. Existing dashboard requests remain in Side tracks.
 - **B-RESEARCH:** confirm hosted retention/model details, per-profile backend switching, Mac-side media routing,
@@ -153,7 +238,6 @@ Requested 2026-10-15. Record for discussion only; no implementation or service c
   - Today (hosted): app names no model; Pollen's forwarder (`pollen-robotics-reachy-mini-realtime-url.hf.space`, supports A/B) sends sessions to a private HF Inference Endpoint (`hkbax8u9qwedr1uv.endpoints.huggingface.cloud`). Voice list = Qwen3-TTS CustomVoice presets, so very likely HF speech-to-speech (Silero VAD -> STT, likely Parakeet -> vision-capable LLM -> Qwen3-TTS). LLM unconfirmed. Hosted reply speed baseline: first audio ~1.45 s after transcript (app's own "Turn latency" log).
   - To confirm: run the app by hand on the robot with `--debug` (Pollen dev workflow) and read `session.created`.
   - Possibilities to compare: (a) Pollen hosted (free, unknown/changeable models, data to HF); (b) speech-to-speech on the Mac (choose each stage: STT Parakeet/Whisper; LLM Qwen3.5-4B in-process or Gemma via LM Studio; TTS Qwen3-TTS presets, Pocket TTS clone, OmniVoice clone, or our Marvin endpoint); (c) our own HF Inference Endpoint (paid, our choice of models, still off-Mac); (d) other realtime providers (OpenAI, Gemini) for general mode only, never personal data.
-- **Vision: `look_around` (expanded 2026-10-15).** Replace the movement-only sweep with safe full body/head yaw coverage and pitch bands. Capture settled frames with actual poses, detect objects/people/faces locally and retain a timestamped angular scene model with lateral/vertical location. Account for unseen regions, moving people, uncertainty and changed base placement. Automatic face following stays deferred. Details: B-SCAN and B-ALIGN above.
 - **Voice: choosing vs adding.** Hosted: 9 presets only (Aiden, Ryan, Dylan, Eric, Ono_Anna, Serena, Sohee, Uncle_Fu, Vivian), set via `voice =` in profile.md or the UI. Own voice needs our backend (step 6/8): Marvin endpoint (tts-chatterbox), Pocket TTS or OmniVoice clone.
 - **Dashboard gap (seen 2026-10-14): when the app hears nothing there is no trace.** "Look up"/"look down" left no transcript, event or log line. Add: peak mic level over the last 10 s next to the sound bar, so a missed request shows whether the mic heard it. Firmware 2.1.4 adds +6 dB on the INPUT (changelog), which may help a quiet mic.
 - **More dashboard additions:** `camera.image` event DONE 2026-10-13 (photo size, every picture sent to the AI); still to do: the picture itself (no daemon snapshot route: needs WebRTC from the Mac or a small robot-side helper), `latency` events from the app's "Turn latency" lines, move started/finished from the daemon (movement tools report "done" while still moving).
@@ -178,51 +262,3 @@ Requested 2026-10-15. Record for discussion only; no implementation or service c
 Domotick
 - `Domotick/reachy_web` (`eyes.py`) already drives two community LED-eye hardware mods behind one `/eyes/*` API: **Reachy Eyes** (RP2350 on USB serial, brainwavecollective, no licence) and **reachy-mini-esp32-eyes** (ESP32 over WiFi at `rmeyes.local`, Apache-2.0). Colours, blink, startle effects. Needs the hardware; nothing in our stack yet.
 
-# behviours ideas
-
-Sound effects
-https://www.trekcore.com/audio/ lots of sounds we should build a library to allow seelction of noise by category of event / actions
-
-Gestures
-simple nod, a side to side sway, or a head tilt roll. There is also a dizzy spin, a stumble and recover, headbanger combo, and interwoven spirals. I can do a sharp side tilt, side peekaboo, a yeah nod, an uh huh tilt, or a neck recoil. There is also a chin lead, groovy sway and roll, chicken peck, side glance flick, polyrhythm combo, grid snap, pendulum swing, and the jackson square.
-
- thinking, attentive, and uncertain would be the most useful. I also have a confused emotion if a tool returns no results
-
- Transition thinking and speaking
-
- ## IMU integration
- simple taps, tilting with more alarm have different taps as commands
-
- # Head banging
- Safe zones collision avoidance map.
-
- # PIR
- could work with Pi to wake
-
- ## Power management
- Pi to do that.
-
- # Custom low power mode
-
- # Weather sensor or darkness or
- so has knowledge
-
- ## Triggers and events and hooks
- look for them
-
- # loud noises
- trigger lok about
-
- # sensors
- TOF for distance
- tempaerature
- ultrasonic
- Millimtere wave radar
- ultrasoncis mulitple triangulate
- infrared
-
- https://huggingface.co/spaces/pollen-robotics/reachy-mini-chatbox
-
- Gesture recognition
-
- AI Camera - live object

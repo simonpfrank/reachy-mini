@@ -41,15 +41,18 @@ def test_clear_endpoint_empties_the_event_list() -> None:
         assert client.get("/api/snapshot").json()["events"] == []
 
 
-def test_typed_utterance_is_forwarded_and_visible_in_existing_logs(monkeypatch) -> None:
+def test_typed_utterance_is_recorded_then_forwarded_and_visible_in_existing_logs(monkeypatch) -> None:
     sender = AsyncMock()
-    monkeypatch.setattr(server, "send_utterance", sender)
+    recorder = AsyncMock(return_value=True)
+    monkeypatch.setattr(server, "send_with_reconnect", sender)
+    monkeypatch.setattr(server, "record_typed", recorder)
     monkeypatch.setattr(server, "_start_feeds", lambda *args: [])
     with TestClient(create_app(Store(), robot_host="robot.local")) as client:
         response = client.post("/api/utterances", json={"text": "  Stop following my voice  "})
         events = client.get("/api/snapshot").json()["events"]
     assert response.status_code == 200
     assert response.json() == {"ok": True}
+    recorder.assert_awaited_once_with("ws://robot.local:7860/rpc", "Stop following my voice")
     sender.assert_awaited_once_with("ws://robot.local:7860/rpc", "Stop following my voice")
     assert events[-1]["source"] == "hub"
     assert events[-1]["kind"] == "utterance.sent"
@@ -59,7 +62,7 @@ def test_typed_utterance_is_forwarded_and_visible_in_existing_logs(monkeypatch) 
 @pytest.mark.parametrize("body", [{"text": ""}, {"text": "  "}, {}, {"text": None}])
 def test_empty_or_invalid_utterance_never_reaches_robot(monkeypatch, body) -> None:
     sender = AsyncMock()
-    monkeypatch.setattr(server, "send_utterance", sender)
+    monkeypatch.setattr(server, "send_with_reconnect", sender)
     with TestClient(create_app(Store(), robot_host=None)) as client:
         response = client.post("/api/utterances", json=body)
     assert response.status_code == 422
@@ -67,7 +70,8 @@ def test_empty_or_invalid_utterance_never_reaches_robot(monkeypatch, body) -> No
 
 
 def test_delivery_error_is_returned_and_recorded_in_telemetry(monkeypatch) -> None:
-    monkeypatch.setattr(server, "send_utterance", AsyncMock(side_effect=UtteranceError("App unavailable", 503)))
+    monkeypatch.setattr(server, "send_with_reconnect", AsyncMock(side_effect=UtteranceError("App unavailable", 503)))
+    monkeypatch.setattr(server, "record_typed", AsyncMock(return_value=False))
     monkeypatch.setattr(server, "_start_feeds", lambda *args: [])
     with TestClient(create_app(Store(), robot_host="robot.local")) as client:
         response = client.post("/api/utterances", json={"text": "Hello"})

@@ -15,50 +15,61 @@ IF agents.local.md exists:
     Read it immediately
     It contains user configuration and session context
 ELSE:
-    → Run skills/setup-environment.md to set up the environment
+    → Stop and ask Simon
 ```
 
 This file stores the user's robot type, preferences, and setup status. Always check it first.
 
-### Be a Teacher
+### Working Style
 
-Unless the user explicitly requests otherwise:
-- Explain concepts as you go
-- Encourage questions ("Let me know if you'd like more detail on any of this")
-- Guide non-technical users through each step
-- Don't assume prior knowledge
+Simon is an experienced developer. We work as a team: discuss, agree, disagree, challenge. Near-production quality, pragmatic security, no gold-plating.
 
-### Two App Flavours — Default to JS, Python for developers
+- **Short replies.** A few lines, bad news first. No essays.
+- **Decisions:** one recommendation plus a yes/no question.
+- **Flag on its own line, never buried:** deviations, security gaps, failing tests.
+- **Decisions happen in conversation,** not in documents. Docs record what was agreed, with no excuses or history; Simon should never learn of a decision by reading a doc.
+- **Nail it first time.** A feature is done when it is right. Later changes come from new learning, not from fixing a poor first build.
 
-Reachy Mini supports two app types. **Default to a JS (Live/Web) app** unless the user explicitly wants on-robot Python, or has a need that only Python can cover (heavy on-robot compute, rich hardware access, deterministic real-time control loops, or bundled offline LAN tooling).
+### Development Standards
 
-| Flavour | Default for | Where it runs |
+- **Check for existing functionality** before adding any; never duplicate it.
+- **Simplicity first.** No over-engineering, no stubs or placeholders, delete commented-out code. Max 500 lines per file, ~50 per function.
+- **TDD.** Write the failing unit test first; every bug fix gets a regression test. Keep `docs/test_summary.md` current.
+- **Unit tests** (`tests/unit/`) may mock. Aim for ~90% coverage; check it once per feature, not on every run.
+- **Integration tests** (`tests/integration/`) **never mock** — no `unittest.mock`, `MagicMock`, `@patch` or `monkeypatch`. Write one wherever a real run would catch a failure before the live robot test (real APIs, real files, real daemon/app, real installed packages).
+- **Test honesty.** No skips: a test that cannot run fails and is reported. Every failing test is yours to fix, including old ones; never call a failure "pre-existing" or unrelated.
+- **Evidence.** Never claim a result without running it and showing the output. Say "NOT TESTED" when it wasn't.
+- **After a rename, deletion or scope change,** grep for every reference and fix it, and fix all lint errors, including pre-existing ones.
+- **Before reporting done,** check every item in the agreed plan has working code.
+- **Security.** No `shell=True`; validate external input (paths, web content, tool arguments); secrets never in code or logs.
+
+### Python First
+
+This project is Python-first. Use a JS app only where it is clearly the more convenient way to do something, such as a browser UI.
+
+| Flavour | Use for | Where it runs |
 |---|---|---|
-| **JS app (recommended)** | End-users, shareable-by-URL experiences, anyone who wants "open a link, use the robot". Remote launch, zero-install, streaming A/V UIs. | Static HF Space; reaches the robot over WebRTC via the central signaling server. |
-| **Python app** | Developer tools, on-robot control loops, heavy motion sequencing, offline/LAN. | Robot owner's machine (laptop / CM4), optionally with a bundled web UI. |
+| **Python (default)** | Robot tools, on-robot control loops, motion sequencing, offline/LAN. | On the robot (CM4), optionally with a bundled web UI. |
+| **JS app** | Browser UIs where JS is clearly more convenient. | Static HF Space; reaches the robot over WebRTC via the central signaling server. |
 
 Both coexist — a Python app can bundle a browser UI, and a JS app can call the Python daemon's REST API.
-
-**When unsure, start JS.** If the user later discovers they need on-robot compute they can graduate to a Python app; the reverse migration is rarely needed.
-
-Confirm the choice with the user up front, then jump to the corresponding section:
-- JS path → [Live/Web/JS Apps](#livewebjs-apps)
-- Python path → instructions below
 
 ---
 
 **Python path (for developers):**
 
 - **NEVER create app folders manually** — use `reachy-mini-app-assistant`.
-- **If a command fails**, ask the user to run it in their terminal — don't attempt complex workarounds.
+- **If a command fails**, diagnose the cause from its output and fix it. Hand it to the user only when the fix needs their access, hardware or a decision.
 
 ```bash
 # Default template (minimal app - good for most cases):
-reachy-mini-app-assistant create <app_name> <path> --publish
+reachy-mini-app-assistant create <app_name> <path>
 
 # Conversation template (for LLM integration, speech, making robot talk):
-reachy-mini-app-assistant create --template conversation <app_name> <path> --publish
+reachy-mini-app-assistant create --template conversation <app_name> <path>
 ```
+
+Never publish (`--publish`, HF push) unless Simon asks.
 
 Python apps put web UIs in `static/`. See `skills/create-app.md` for details.
 
@@ -70,22 +81,20 @@ Functional requirements belong only in `docs/roadmap.md`. Unscheduled work belon
 Phase plans reference roadmap requirement IDs instead of repeating requirements. See `docs/README.md`
 for document ownership; completed plans are consolidated and removed rather than kept as competing guidance.
 
-### Always Create a Plan Before Coding
+### Agree, Then Build Autonomously
 
-Before implementing any app:
-1. Create or update the relevant plan under `docs/`, using a descriptive filename such as `docs/phase2.md`
-2. Write your understanding of what the user wants
-3. List your technical approach
-4. Ask clarifying questions and provide answer fields inside that plan
-5. Wait for answers before coding
+For any change (apps, tools, hub, scripts):
+1. **Agree first.** Discuss, argue, agree. Then restate the agreed build list in a few bullets and wait for Simon's go. Record the agreed list in the relevant plan under `docs/`.
+2. **Then build without check-ins.** Build only that list, write tests, and run `pytest`, `ruff check .` and `mypy` (no arguments; scope is set in `pyproject.toml`) until clean.
+3. **Any change of direction: stop.** Before or during the build, if anything should differ from the agreed list, stop and raise it as its own question. Discuss, agree, then continue. Never substitute an approach or add behaviour on your own judgement.
+4. **Verify, don't assert.** Check packages, APIs and behaviour against the installed source or by running them before stating them as fact.
+5. **Hand back** for the live robot test, starting with "Built as agreed: yes" or "no, with these differences". End with a **To test** block: numbered steps in order, exact copy-paste commands, every restart needed (conversation app for `robot_tools/`; `scripts/hub.sh stop && scripts/hub.sh start` for `reachy_hub/`), and what Simon should see when it works.
 
-### Keep Notes in agents.local.md
+**Hard limits, unless Simon asks:** never restart the live app, move motors, publish, `git push`, fork apps, patch installed packages or add a second motor writer.
 
-Use `agents.local.md` to store:
-- User's robot type (Lite/Wireless)
-- Environment preferences
-- Useful context for future sessions
-- Keep it concise
+### agents.local.md
+
+Holds current setup facts only. Update it only when Simon asks.
 
 ---
 
@@ -123,15 +132,13 @@ with ReachyMini() as mini:
 | `goto_target()` | **Default** - smooth interpolation for gestures that last at least 0.5s each |
 | `set_target()` | Real-time control loops (e.g. tracking) at 10Hz+ |
 
-### Basic Example
-
-See and run `examples/minimal_demo.py` - demonstrates connection, head motion, and antenna control.
-
 ### Before Writing Code
 
-- Read `docs/source/SDK/python-sdk.md` for API overview
-- Skim `src/reachy_mini/reachy_mini.py` for method signatures and docstrings
-- Check `examples/` for runnable code patterns
+Before using an SDK or conversation-app API, read its installed source:
+- Live (what the robot runs): `/venvs/apps_venv/lib/python3.12/site-packages/` (`reachy_mini`, `reachy_mini_conversation_app`)
+- Dev: `.venv/lib/python3.12/site-packages/`
+
+Paths below such as `ts/…`, `docs/source/…`, `examples/` and `RELEASE.md` are in the upstream [pollen-robotics/reachy_mini](https://github.com/pollen-robotics/reachy_mini) repository, not this project.
 
 ---
 

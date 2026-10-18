@@ -10,7 +10,11 @@ Repository: `/home/pollen/projects/reachy-tools`. Documentation index: [README](
 2. Open the repository; select `.venv/bin/python` and install the recommended remote Python/debugger extensions.
 3. For development hardware use, stop the dashboard conversation app first, leaving the daemon running.
 4. Run **Reachy: conversation app** with F5; stop it afterwards.
-5. Forward 7860 for the conversation UI and 8710 for the optional **Reachy: telemetry hub**.
+5. Forward 7860 for the conversation UI.
+6. Telemetry: run `scripts/hub.sh start` on the robot and open `http://reachy-mini.local:8710` in a browser
+   on the Mac. It keeps running until `scripts/hub.sh stop` or a restart; `status` shows the address. While
+   running it is visible to the home network, transcripts included. **Reachy: telemetry hub** (F5) remains
+   for debugging, robot-only through a forwarded port; stop one before starting the other.
 
 Do not run two conversation apps or competing motion writers.
 
@@ -30,6 +34,11 @@ loads the checked-out code when it starts or reloads tools. Keep the checked-out
 unfinished work on another branch. Never copy tools elsewhere. The former copy, `/home/pollen/reachy_tools/`,
 is no longer loaded (switched 2026-10-17; backup of the previous `/venvs/.env` in
 `~/.local/share/venvs-env.backup-20261017`).
+
+Packages the tools need beyond the standard library (BeautifulSoup) are pinned in
+`robot_tools/requirements.txt` and installed into the app environment with Pollen's own method (that
+environment's pip): `scripts/tool_deps.sh install`; `check` confirms. Re-run install if a Pollen update or
+reinstall ever replaces `/venvs/apps_venv`. The same pin is in `pyproject.toml` for the development `.venv`.
 
 `.env.example` records development settings. Actual `.env` and mutable state are
 excluded from Git. `AUTOLOAD_EXTERNAL_TOOLS=0` avoids directory-wide discovery. There is no relay (retired 2026-10-16).
@@ -78,11 +87,27 @@ would discover it twice. No live personality contents were changed to create the
 Git records only the absolute symlink, not Standard/Marvin contents. Personality backup remains separate;
 the link is specific to this robot's filesystem.
 
+## Sleep and wake word
+
+The `sleep` tool starts the wake watcher (`reachy_wake/`), then runs Pollen's sleep; saying the wake word
+("hey mycroft" until "hey Reachy" is trained) starts the conversation app again. In each personality you use,
+untick `go_to_sleep` and tick `sleep`. Anything else that puts the robot to sleep (Pollen's app, the inactivity
+timeout, a reboot) does not start the watcher: start the app by hand.
+
+The watcher has its own venv. Set it up once (and again if `reachy_wake/requirements.txt` changes):
+
+```bash
+cd ~/projects/reachy-tools
+.venv/bin/uv venv --python 3.12 ~/venvs/reachy-wake
+VIRTUAL_ENV=~/venvs/reachy-wake .venv/bin/uv pip install -r reachy_wake/requirements.txt
+```
+
+Logs: `journalctl --user -u reachy-wake`. Status: `systemctl --user status reachy-wake`.
+
 ## Tests
 
-**Run Test Task** runs the maintained unit suite. The separate all-unit task includes the experimental tracker.
-Live integration tests require deliberate selection. Commands/results: [test summary](test_summary.md).
-The offline workbench uses fake peers and speaker hardware, not real speech recognition, playback or movement.
+**Run Test Task** runs the whole suite, unit and integration. Integration tests need the robot daemon and
+conversation app running and fail, saying what to start, if they are not. Commands/results: [test summary](test_summary.md).
 
 ## Backups and update procedure
 

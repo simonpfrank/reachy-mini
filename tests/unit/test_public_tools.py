@@ -1,8 +1,7 @@
-"""Tests for web_search, read_article and news with mocked providers, key decryption and a recorded BBC feed.
+"""Tests for web_search and news with mocked providers, key decryption and a recorded BBC feed.
 The conversation app's Tool base only exists on the robot, so a stand-in module is registered before import."""
 
 import asyncio
-import importlib
 import io
 import json
 import subprocess
@@ -28,7 +27,7 @@ for name in ("reachy_mini_conversation_app", "reachy_mini_conversation_app.tools
     sys.modules.setdefault(name, types.ModuleType(name))
 sys.modules.setdefault("reachy_mini_conversation_app.tools.core_tools", _core_tools)
 
-from robot_tools import news, read_article, web_search  # noqa: E402
+from robot_tools import news, web_search  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 BBC_FEED = (ROOT / "tests" / "data" / "news_bbc_top.xml").read_bytes()
@@ -59,7 +58,6 @@ def web(monkeypatch, tmp_path):
                 {"title": "Second", "url": "https://example.org/b", "content": "beta"},
             ]
         },
-        read_article.EXTRACT_URL: {"results": [{"url": "https://example.org/b", "raw_content": "Full text."}]},
     }
 
     def urlopen(request, timeout):
@@ -76,7 +74,7 @@ def web(monkeypatch, tmp_path):
             raise reply
         return io.BytesIO(reply if isinstance(reply, bytes) else json.dumps(reply).encode())
 
-    for module in (web_search, read_article, news):
+    for module in (web_search, news):
         monkeypatch.setattr(module.urllib.request, "urlopen", urlopen)
     return types.SimpleNamespace(
         calls=calls, replies=replies, state=tmp_path, key=key, decrypts=decrypts, decrypted=decrypted
@@ -113,7 +111,6 @@ def test_undecryptable_or_missing_key_stops_before_any_request(web):
     web.key.unlink()
     for call in (
         lambda: web_search.search_payload("anything"),
-        lambda: read_article.article_payload(url="https://example.org/b"),
         lambda: news.news_payload("Rugby World Cup"),
     ):
         with pytest.raises(RuntimeError, match=r"not set up: no Tavily key \(scripts/keys.sh add tavily\)"):
@@ -132,7 +129,6 @@ def test_keys_script_is_valid_bash():
     keys("-n")
 
 
-@pytest.mark.skipif(not Path(web_search.SYSTEMD_CREDS).exists(), reason="needs systemd-creds (robot)")
 def test_keys_script_stores_encrypted_key_the_tools_can_read(monkeypatch, tmp_path):
     monkeypatch.setenv("REACHY_TOOLS_KEYS_DIR", str(tmp_path))
     keys("add", "tavily", stdin=b"dummy-not-a-key\n")
@@ -159,36 +155,6 @@ def test_search_refuses_bad_arguments(web):
         web_search.search_payload("x", "decade")
 
 
-def test_read_listed_item_by_number(web):
-    web_search.search_payload("anything")
-    result = read_article.article_payload(number=2)
-    assert web.calls[-1]["url"] == read_article.EXTRACT_URL
-    assert web.calls[-1]["body"]["urls"] == ["https://example.org/b"]
-    assert (result["title"], result["text"], result["truncated"]) == ("Second", "Full text.", False)
-
-
-def test_read_bounds_long_text(web, monkeypatch):
-    monkeypatch.setattr(read_article, "MAX_CHARS", 5)
-    result = read_article.article_payload(url="https://example.org/b")
-    assert (result["text"], result["truncated"]) == ("Full ", True)
-
-
-def test_read_refuses_unknown_number_and_non_web_addresses(web):
-    with pytest.raises(ValueError, match="no item 3"):
-        read_article.article_payload(number=3)
-    with pytest.raises(ValueError, match="http or https"):
-        read_article.article_payload(url="file:///etc/passwd")
-    with pytest.raises(ValueError, match="listed item or a URL"):
-        read_article.article_payload()
-    assert web.calls == []
-
-
-def test_read_reports_unreadable_page(web):
-    web.replies[read_article.EXTRACT_URL] = {"results": [], "failed_results": [{"url": "x", "error": "blocked"}]}
-    with pytest.raises(RuntimeError, match="could not be read: blocked"):
-        read_article.article_payload(url="https://example.org/b")
-
-
 def test_bbc_headlines_skip_videos_and_are_numbered(web):
     result = news.news_payload()
     headlines = result["headlines"]
@@ -197,15 +163,6 @@ def test_bbc_headlines_skip_videos_and_are_numbered(web):
     assert all("/videos/" not in h["url"] and "?" not in h["url"] for h in headlines)
     assert headlines[0]["source"] == "BBC News" and headlines[0]["published"]
     assert web.calls[0]["url"] == "https://feeds.bbci.co.uk/news/rss.xml" and web.calls[0]["auth"] is None
-
-
-def test_second_story_survives_tool_reload(web):
-    second = news.news_payload("top")["headlines"][1]
-    reloaded = importlib.reload(read_article)
-    reloaded.urllib.request.urlopen = web_search.urllib.request.urlopen  # same fake provider after reload
-    web.replies[reloaded.EXTRACT_URL] = {"results": [{"url": second["url"], "raw_content": "Story."}]}
-    result = reloaded.article_payload(number=2)
-    assert result["url"] == second["url"] and result["title"] == second["title"]
 
 
 def test_other_topics_use_news_search(web):
@@ -228,4 +185,3 @@ def test_tools_run_off_the_event_loop(web):
     assert asyncio.run(news.News()(None, topic="uk"))["topic"] == "uk"
     assert web.calls[-1]["url"] == "https://feeds.bbci.co.uk/news/uk/rss.xml"
     assert asyncio.run(web_search.WebSearch()(None, query="q"))["results"]
-    assert asyncio.run(read_article.ReadArticle()(None, number=1))["url"] == "https://example.org/a"

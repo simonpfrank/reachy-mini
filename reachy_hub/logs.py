@@ -5,7 +5,8 @@ App output reaches the daemon log wrapped by the app runner, e.g.
 the app's own level (INFO above) is the one that counts, not the wrapper's WARNING.
 
 Kept: tool calls (with arguments), tool starts (including idle-triggered ones),
-cancelled tools, photos sent to the AI (camera.image), session starts, and any WARNING/ERROR. Routine INFO is dropped.
+cancelled tools, photos sent to the AI (camera.image), session starts, every INFO line from our own
+external tools (tool.log), and any WARNING/ERROR. The app's other INFO (about 16,000 lines an hour) is dropped.
 
 Usage:
     event = event_from_log_line(line)  # Event or None
@@ -41,6 +42,7 @@ CAMERA_IMAGE = re.compile(r"^Added camera image to conversation jpeg_bytes=(?P<b
 SESSION = re.compile(r"^Realtime session initialized with profile='(?P<profile>[^']*)' voice='(?P<voice>[^']*)'")
 LEVEL_KIND = {"WARNING": "log.warning", "ERROR": "log.error", "CRITICAL": "log.error"}
 TOOL_MANAGER = "background_tool_manager"
+OUR_TOOLS = "reachy_mini_conversation_app._external_tools."
 
 
 def _args(raw: str) -> Any:
@@ -78,7 +80,7 @@ def _tool_result(msg: str) -> dict[str, Any] | None:
         return None
     if truncated:
         start = raw.find(CONTENT_START)
-        text = raw[start + len(CONTENT_START):] if start >= 0 else raw
+        text = raw[start + len(CONTENT_START) :] if start >= 0 else raw
     else:
         text = str(result.get("text") or json.dumps(result))
     found = ERROR_IN_TEXT.search(text)
@@ -111,6 +113,8 @@ def _app_kind_and_data(logger: str, msg: str) -> tuple[str, dict[str, Any]] | No
         return "camera.image", {"bytes": size, "kb": round(size / 1024)}
     if m := SESSION.match(msg):
         return "app.session", {"profile": m["profile"], "voice": m["voice"]}
+    if logger.startswith(OUR_TOOLS):
+        return "tool.log", {"tool": logger.removeprefix(OUR_TOOLS), "message": msg}
     return None
 
 

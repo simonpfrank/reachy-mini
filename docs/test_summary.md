@@ -16,26 +16,28 @@ No new robot tests were run during documentation consolidation.
 ## Commands
 
 ```bash
-# Maintained suite, loopback access needed for fake servers
-.venv/bin/python -m pytest tests/unit --ignore=tests/unit/test_tracker.py -q
-
-# Includes experimental tracker
-.venv/bin/python -m pytest tests/unit -q
+# Whole suite: unit and integration. Nothing is excluded or skipped.
+.venv/bin/python -m pytest -q
 ```
 
-`tests/integration/` contains deliberately selected robot tests. They are not part of ordinary unit checks.
-Fake-peer workbench tests exercise the real relay transport but simulate provider and speaker hardware.
+`tests/integration/` runs for real against the robot daemon (8000) and conversation app (7860), with no mocks.
+If either is down, those tests fail and say what to start.
 
 ## Coverage map
 
 | Area | Evidence location |
 |---|---|
 | RPC/state parsing, feeds, logs, store, IMU, server, typed input | `tests/unit/test_events.py`, `test_sources.py`, `test_logs.py`, `test_store.py`, `test_imu.py`, `test_server.py`, `test_utterances.py` |
-| Context/control adapters and live relay logic | `tests/unit/test_today_tool.py`, `test_phase1_tools.py`, `test_conversation_runtime.py` |
-| Following/planning and experimental tracking | `tests/unit/test_voice_look_tool.py`, `test_track.py`, `test_tracker.py` |
+| Context/control adapters | `tests/unit/test_today_tool.py`, `test_phase1_tools.py` |
+| Voice following | `tests/unit/test_voice_look_tool.py` |
+| Public tools (weather, news, web search, read_article, keys) | `tests/unit/test_weather_tool.py`, `test_public_tools.py`, `test_read_article.py` |
+| Site approval (user's yes from the transcript; model cannot approve alone) | `tests/unit/test_approve_site.py`, `tests/integration/test_approval_robot.py` |
+| Sleep and wake watcher | `tests/unit/test_sleep_tool.py`, `test_wake_watcher.py`, `tests/integration/test_wake_robot.py` |
 | Retired patch refusal/source transforms | `tests/unit/test_patch_retirement.py`, `test_voice_look_install.py`; helpers now under `archive/retired_patches/` |
-| Offline workbench/artifact boundaries | `tests/unit/test_workbench.py` |
+| Real robot daemon, app and hub | `tests/integration/test_sources_robot.py`, `test_server_robot.py`, `test_approval_robot.py` |
 | Recorded robot samples | `tests/data/` |
+
+The experimental voice tracker and its tests were retired to `archive/tracker/` on 2026-10-17.
 
 ## Historical results
 

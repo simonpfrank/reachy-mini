@@ -2,37 +2,18 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Reachy: maintained tests (tracker excluded)",
+      "label": "Reachy: all tests",
       "type": "process",
       "command": "${workspaceFolder}/.venv/bin/python",
       "args": [
         "-m",
         "pytest",
-        "tests/unit",
-        "--ignore=tests/unit/test_tracker.py",
         "-q"
       ],
       "group": {
         "kind": "test",
         "isDefault": true
       },
-      "problemMatcher": [],
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared",
-        "clear": true
-      }
-    },
-    {
-      "label": "Reachy: all unit tests (includes experimental tracker)",
-      "type": "process",
-      "command": "${workspaceFolder}/.venv/bin/python",
-      "args": [
-        "-m",
-        "pytest",
-        "tests/unit",
-        "-q"
-      ],
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",

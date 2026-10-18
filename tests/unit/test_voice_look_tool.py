@@ -1,4 +1,4 @@
-"""Stock-app voice following: cancellable lifetime, safe poses, and queue arbitration."""
+"""Turning toward voices: immediate replies, worker lifetime, safe poses and queue arbitration."""
 
 import asyncio
 import importlib.util
@@ -52,37 +52,60 @@ def test_import_and_reload_have_no_worker_side_effects(runtime, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_one_app_owned_task_survives_tool_reload_and_stops_cleanly(runtime):
+async def test_call_replies_at_once_and_one_worker_survives_reload(runtime):
     deps, load, *_ = runtime
-    first = asyncio.create_task(load().VoiceLook()(deps, enabled=True))
+    module = load()
+    result = await asyncio.wait_for(module.VoiceLook()(deps), timeout=1)  # no arguments means on
+    assert result == {"enabled": True, "turning_to_voices": True}
+    owner = deps.movement_manager._stock_voice_follower
+    first = owner.task
     try:
-        for _ in range(20):
-            await asyncio.sleep(0.005)
-            if getattr(deps.movement_manager, "_stock_voice_follower", None):
-                break
-        owner = deps.movement_manager._stock_voice_follower
-        assert owner.task is first and owner.running
-        reloaded = load().VoiceLook()
-        duplicate = await reloaded(deps, enabled=True)
-        assert duplicate["running"] and owner.task is first
-        result = await reloaded(deps, enabled=False)
-        assert result == {"enabled": False, "running": False}
-        await first
-        assert not owner.running
+        await asyncio.sleep(0.01)
+        assert owner.running and not first.done()
+        again = await module.VoiceLook()(deps, enabled=True)  # same code: the running worker is kept
+        assert again == {"enabled": True, "turning_to_voices": True}
+        assert deps.movement_manager._stock_voice_follower.task is first
+        reloaded = load().VoiceLook()  # tool reload: the old worker ends before a new one starts
+        assert await reloaded(deps, enabled=True) == {"enabled": True, "turning_to_voices": True}
+        current = deps.movement_manager._stock_voice_follower
+        assert first.done() and current is not owner and current.running
+        assert await reloaded(deps, enabled=False) == {"enabled": False, "turning_to_voices": False}
+        assert current.task.done() and not current.running
     finally:
         first.cancel()
         await asyncio.gather(first, return_exceptions=True)
 
 
 @pytest.mark.asyncio
-async def test_app_manager_cancellation_ends_worker(runtime):
+async def test_worker_left_by_an_older_version_is_stopped_and_replaced(runtime):
     deps, load, *_ = runtime
-    task = asyncio.create_task(load().VoiceLook()(deps, enabled=True))
-    await asyncio.sleep(0.025)
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    assert not deps.movement_manager._stock_voice_follower.running
+
+    async def old_loop():
+        while old.running:
+            await asyncio.sleep(0.001)
+
+    old = types.SimpleNamespace(running=True)  # the previous version had no start()
+    old.task = asyncio.create_task(old_loop())
+    deps.movement_manager._stock_voice_follower = old
+    assert await load().VoiceLook()(deps) == {"enabled": True, "turning_to_voices": True}
+    assert old.task.done() and not old.running
+    current = deps.movement_manager._stock_voice_follower
+    assert current is not old and current.running
+    await load().VoiceLook()(deps, enabled=False)
+
+
+@pytest.mark.asyncio
+async def test_app_shutdown_cancellation_ends_worker_and_it_can_restart(runtime):
+    deps, load, *_ = runtime
+    tool = load().VoiceLook()
+    await tool(deps)
+    owner = deps.movement_manager._stock_voice_follower
+    cancelled = owner.task
+    cancelled.cancel()  # before the worker has run at all
+    await asyncio.gather(cancelled, return_exceptions=True)
+    await tool(deps)
+    assert owner.running and owner.task is not cancelled and not owner.task.done()
+    await tool(deps, enabled=False)
 
 
 @pytest.mark.asyncio
@@ -98,7 +121,15 @@ async def test_robot_speaking_flag_comes_from_the_movement_manager(runtime, monk
     monkeypatch.setattr(module.StockFollower, "step", step)
     deps.movement_manager._is_speaking = True
     await module.VoiceLook()(deps, enabled=True)
+    await deps.movement_manager._stock_voice_follower.task
     assert seen == [True]
+
+
+def test_schema_lets_the_model_call_with_no_arguments(runtime):
+    _, load, *_ = runtime
+    tool = load().VoiceLook
+    assert tool.parameters_schema["required"] == []
+    assert tool.parameters_schema["properties"]["enabled"]["description"]
 
 
 @pytest.mark.parametrize(
@@ -136,7 +167,7 @@ async def test_fresh_sustained_evidence_and_gesture_pause(runtime, monkeypatch):
     status["breathing_active"] = True
     for now in (10.4, 10.5, 10.6, 10.8):
         await follower.step(state, now)
-    queue.assert_called_once_with((90.0, 55.0), 10.8)
+    queue.assert_called_once_with((90.0, 55.0), 10.8, "voice", 90.0, 4)
 
 
 @pytest.mark.asyncio
@@ -153,7 +184,7 @@ async def test_retained_heading_restored_through_queue_after_gesture(runtime, mo
     queue.assert_not_called()
     status["breathing_active"] = True
     await follower.step(state, 11)
-    queue.assert_called_once_with((100, 65), 11)
+    queue.assert_called_once_with((100, 65), 11, "restore")
     assert not hasattr(deps.movement_manager, "set_voice_facing")
 
 
@@ -191,3 +222,31 @@ def test_full_yaw_path_keeps_body_and_relative_head_within_limits(runtime, start
         assert abs(module.angular_delta(heading, math.degrees(actual_body))) <= 35.00001
         assert -125.00001 <= math.degrees(actual_body) <= 140.00001
     assert abs(module.angular_delta(heading, target)) < 0.00001
+
+
+@pytest.mark.asyncio
+async def test_on_off_and_turns_are_logged_with_their_reasons(runtime, caplog):
+    deps, load, *_ = runtime
+    module = load()
+    caplog.set_level("INFO")
+    tool = module.VoiceLook()
+    await tool(deps)
+    await tool(deps)
+    await tool(deps, enabled=False)
+    await tool(deps, enabled=False)
+    follower = deps.movement_manager._stock_voice_follower
+    follower.pose = lambda: (module.create_head_pose(), 10.0, 0.0, (0, 0))
+    deps.movement_manager.get_status = lambda: {}
+    follower.queue((80.0, 45.0), 1.0, "voice", 80.0, 5)
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("VOICE_LOOK")]
+    worker = follower.worker
+    assert lines[0] == f"VOICE_LOOK request worker={worker} enabled=true result=started"
+    assert f"VOICE_LOOK on worker={worker}" in lines
+    assert f"VOICE_LOOK request worker={worker} enabled=true result=already_on" in lines
+    assert f"VOICE_LOOK off worker={worker} reason=stopped" in lines
+    assert f"VOICE_LOOK request worker={worker} enabled=false result=stopped" in lines
+    assert f"VOICE_LOOK request worker={worker} enabled=false result=already_off" in lines
+    assert lines[-1] == (
+        f"VOICE_LOOK turn worker={worker} reason=voice heard=+80.0 readings=5 from_head=+10.0 from_body=+0.0 "
+        "head=+80.0 body=+45.0"
+    )

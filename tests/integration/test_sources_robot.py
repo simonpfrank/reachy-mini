@@ -1,4 +1,4 @@
-"""Real connections to the robot. No mocks. Skips when the robot or app is not reachable.
+"""Real connections to the robot. No mocks. Fails, saying what to start, when the daemon or app is not reachable.
 
 Set REACHY_HOST to override the robot address.
 """
@@ -18,12 +18,11 @@ STATE_URL = f"ws://{ROBOT}:8000/api/state/ws/full?frequency=5&with_doa=true&with
 APP_RPC_URL = f"ws://{ROBOT}:7860/rpc"
 
 
-def _reachable(port: int) -> bool:
+def _require(port: int, what: str) -> None:
     try:
         socket.create_connection((ROBOT, port), timeout=2).close()
-        return True
     except OSError:
-        return False
+        pytest.fail(f"{what} not reachable at {ROBOT}:{port}; start it and rerun")
 
 
 def _collect(url: str, keep: int, accept: type | None = None, timeout_s: float = 15) -> tuple[list[object], list[str]]:
@@ -47,8 +46,8 @@ def _collect(url: str, keep: int, accept: type | None = None, timeout_s: float =
     return messages, statuses
 
 
-@pytest.mark.skipif(not _reachable(8000), reason="robot daemon not reachable")
 def test_daemon_state_stream_gives_robot_states() -> None:
+    _require(8000, "robot daemon")
     messages, statuses = _collect(STATE_URL, keep=3)
     states = [robot_state_from_full(m) for m in messages if isinstance(m, dict)]
     assert statuses[0] == "connected"
@@ -56,8 +55,8 @@ def test_daemon_state_stream_gives_robot_states() -> None:
     assert all(s.motor_mode in {"enabled", "disabled", "gravity_compensation"} for s in states)
 
 
-@pytest.mark.skipif(not _reachable(7860), reason="conversation app not running")
 def test_app_rpc_stream_gives_app_events() -> None:
+    _require(7860, "conversation app")
     messages, statuses = _collect(APP_RPC_URL, keep=3, timeout_s=10)
     events = [event_from_rpc(m, datetime.now(UTC)) for m in messages]
     assert statuses[0] == "connected"

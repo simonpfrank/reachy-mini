@@ -6,7 +6,7 @@ Current implementation, 2026-10-16. Functional scope: [roadmap](roadmap.md).
 Robot microphone → conversation app → hosted HF speech backend (Pollen, "deployed" mode)
 Robot speaker    ← conversation app ← reply audio
                          ├─ tools: today, location, speech_control (volume API), voice_look,
-                         │         weather (Open-Meteo), news (BBC RSS/Tavily), web_search, read_article (Tavily)
+                         │         weather (Open-Meteo), news (BBC RSS/Tavily), web_search (Tavily), read_article (direct fetch)
                          └─ movement manager → daemon → motors
 
 Hub ← app RPC + daemon state/log WebSockets → browser through SSH forwarding
@@ -17,7 +17,7 @@ Hub ← app RPC + daemon state/log WebSockets → browser through SSH forwarding
 | Daemon, robot port 8000 | Hardware APIs (including speaker volume), app launcher, state/log WebSockets and media |
 | Official conversation app, port 7860 | Audio pipeline, tools, movement owner and `/rpc` |
 | External tools (`robot_tools/`) | Model-callable, self-contained files; motion goes through the app's movement owner |
-| Hub, loopback 8710 | Aggregates events/state/logs and serves the dashboard |
+| Hub, 8710 | Aggregates events/state/logs and serves the dashboard |
 | `profiles/` | Workspace link to the app's existing custom personalities |
 
 No relay, installed app patches or second motion writer. `voice_look` reads the movement manager's
@@ -32,7 +32,8 @@ No relay, installed app patches or second motion writer. `voice_look` reads the 
 | Tool activity, camera metadata, warnings/errors | Daemon `/logs/ws/daemon`; text format is version-sensitive |
 | Typed user turns | Hub `/api/utterances` → app `conversation.say` |
 
-The hub can run on Reachy; its browser port is forwarded to the Mac. RPC/log events describe
+The hub runs on Reachy: `scripts/hub.sh` serves it to the home network, or F5 serves it robot-only through
+a forwarded port. RPC/log events describe
 processing, not proof of audible output. WebRTC carries A/V, not tool-decision telemetry.
 No battery-level API was found in the earlier inspection; voltage alone was not a usable estimate.
 

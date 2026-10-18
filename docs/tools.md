@@ -8,11 +8,13 @@ Paths and launch configuration: [setup](development_setup.md).
 | `today` | No arguments; spoken date/time plus structured fields |
 | `location` | Configured place, region, country, timezone, optional paired coordinates and provisional flag |
 | `speech_control` | Optional boolean `enabled`; false sets daemon speaker volume 0 (level remembered in `speaker_restore.json`), true restores it, omitted reads |
-| `voice_look` | `enabled`; runs under the stock app's background-tool manager |
+| `voice_look` | Optional `enabled` (default on); turns toward whoever is talking; starts a task inside the app and replies at once |
 | `weather` | Optional `place`, `period` (now/today/tomorrow/hourly/weekend/week), `units`; UK Met Office model via Open-Meteo for UK places; ambiguous names return candidates |
 | `news` | Optional `topic`: BBC section (top, world, uk, politics, business, technology, science, health, entertainment) or any subject via Tavily news search; numbered, saved for follow-up |
 | `web_search` | `query`, optional `recent` (day/week/month/year); Tavily; numbered results saved for follow-up |
-| `read_article` | `number` from the last search/news list, or `url`; text via Tavily Extract, max 8000 characters |
+| `sleep` | No arguments; starts the wake watcher, then Pollen's sleep (pose, app stops, motors off); stays awake if the watcher cannot start. Replaces `go_to_sleep` |
+| `approve_site` | `site`; adds the exact refused site to `approved_sites.txt` only if the transcript shows the robot named it and the user said or typed yes; permanent |
+| `read_article` | `number` from the last search/news list, `link` from the last page read, or `url`; fetches the page directly, text via BeautifulSoup (max 8000 characters) plus its links in page order; local and private addresses refused with a reason |
 
 `stay_silent` is retired. Stock search/weather, camera, sweep and move tools remain upstream;
 `sweep_look` queues motion only, `camera` captures one image, and `move_head` has fixed presets.
@@ -22,13 +24,16 @@ These do not implement the roadmap's scan or precise-alignment backlog.
 
 The former relay (`conversation_runtime.py`) was retired on 2026-10-16 and is kept under `archive/relay/`.
 The app connects directly to Pollen's backend ("deployed" mode). Mute uses the daemon volume API.
-`voice_look` runs standalone; the Standard profile greeting asks the model to start it.
+`voice_look` runs standalone. Its own description asks the model to turn it on at the start of every
+conversation, whatever the personality, if the tool is ticked for that personality.
 
 ## Settings and source layout
 
 `REACHY_TOOLS_STATE_DIR` defaults to `~/.config/reachy_tools/`. `location.json` stores place,
 region, country, country_code, timezone, latitude/longitude and provisional status. `speaker_restore.json`
-stores the level unmute restores. `last_results.json` holds the last numbered search/news list.
+stores the level unmute restores. `last_results.json` holds the last numbered search/news list; `last_page_links.json` the links of the last page read. `approved_sites.txt` lists the sites `read_article`
+may read, one per line (seeded with bbc.co.uk, bbc.com, theguardian.com, reuters.com, apnews.com,
+metoffice.gov.uk); delete a line to remove a site.
 None of these belong in Git.
 
 ## API keys

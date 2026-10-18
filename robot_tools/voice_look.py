@@ -1,12 +1,16 @@
-"""Voice following owned by the stock app's background-tool manager.
+"""Turn the head and body toward whoever is speaking.
 
-Started by a normal tool call (the profile greeting asks for it at session start). Uses the public
-movement queue/status methods, SDK sensing and BreathingMove's Move contract, and reads the movement
-manager's speaking flag to ignore the robot's own voice. No relay, app hooks, import-time workers,
-direct daemon motor commands or installed-code changes.
+Started by a normal tool call; the tool description asks the model to call it at the start of every
+conversation, whatever the personality. The call starts an
+asyncio task inside the app and replies at once: the speech backend refuses to respond while a tool call
+is unanswered, so the tool must never wait for the worker. Uses the public movement queue/status methods,
+SDK sensing and BreathingMove's Move contract, and reads the movement manager's speaking flag to ignore
+the robot's own voice. No relay, app hooks, import-time workers, direct daemon motor commands or
+installed-code changes.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -127,7 +131,7 @@ class FacingBreath(BreathingMove):  # type: ignore[misc]
 
 
 class StockFollower:
-    """One cancellable coroutine, owned by BackgroundToolManager rather than a detached thread."""
+    """One cancellable worker task in the app's event loop; the tool call only starts or stops it."""
 
     def __init__(self, deps: ToolDependencies) -> None:
         """Keep ownership on the injected movement manager across tool reloads."""
@@ -147,7 +151,9 @@ class StockFollower:
         heading = math.degrees(math.atan2(pose[1, 0], pose[0, 0]))
         return pose, heading, math.degrees(float(joints[0])), (float(antennas[0]), float(antennas[1]))
 
-    def queue(self, target: tuple[float, float], now: float) -> None:
+    def queue(
+        self, target: tuple[float, float], now: float, reason: str, heard: float | None = None, readings: int = 0
+    ) -> None:
         """Only the app movement queue writes motion; never clear or overwrite a gesture."""
         pose, heading, body, antennas = self.pose()
         command = self.deps.movement_manager.get_status().get("last_commanded_pose", {})
@@ -164,7 +170,17 @@ class StockFollower:
         self.target = target
         self.busy_until = now + duration + SETTLE_S
         self.holding = True
-        logger.info("VOICE_LOOK turn worker=%s head=%+.1f body=%+.1f", self.worker, *target)
+        logger.info(
+            "VOICE_LOOK turn worker=%s reason=%s heard=%s readings=%d from_head=%+.1f from_body=%+.1f "
+            "head=%+.1f body=%+.1f",
+            self.worker,
+            reason,
+            "-" if heard is None else f"{heard:+.1f}",
+            readings,
+            heading,
+            body,
+            *target,
+        )
 
     async def step(self, state: dict[str, Any], now: float) -> None:
         """Pause for gestures/output, restore idle heading, and use fresh dominant speech evidence."""
@@ -179,7 +195,7 @@ class StockFollower:
             self.readings.clear()
             return
         if self.target is not None and not self.holding:
-            self.queue(self.target, now)
+            self.queue(self.target, now, "restore")
             return
         doa = await asyncio.to_thread(_read_doa)
         if not self.running:
@@ -199,18 +215,36 @@ class StockFollower:
         bearing = statistics.median(group)
         target = plan_turn(bearing, body)
         if abs(angular_delta(target[0], heading)) > TURN_IF_OFF_BY_DEG or abs(target[1] - body) > TURN_IF_OFF_BY_DEG:
-            self.queue(target, now)
+            self.queue(target, now, "voice", bearing, len(group))
         self.readings.clear()
 
-    async def run(self) -> dict[str, Any]:
-        """Awaited directly by the app's cancellable tool task; cancellation always cleans up."""
-        if self.task is not None and not self.task.done() and (not self.running or self.task.cancelling()):
-            await asyncio.wait_for(asyncio.shield(self.task), timeout=3)
-        if self.running:
-            return {"enabled": True, "running": True, "worker": self.worker}
-        self.task = asyncio.current_task()
+    async def start(self) -> dict[str, Any]:
+        """Start the worker if it is not running and reply at once."""
+        if self.task is not None and not self.task.done():
+            if self.running:
+                logger.info("VOICE_LOOK request worker=%s enabled=true result=already_on", self.worker)
+                return {"enabled": True, "turning_to_voices": True}
+            await asyncio.wait_for(asyncio.shield(self.task), timeout=3)  # a stopping worker exits first
         self.running = True
+        self.task = asyncio.create_task(self.run())
+        logger.info("VOICE_LOOK request worker=%s enabled=true result=started", self.worker)
+        return {"enabled": True, "turning_to_voices": True}
+
+    async def stop(self) -> dict[str, Any]:
+        """Stop the worker and wait briefly for it to exit."""
+        task = self.task
+        was_on = task is not None and not task.done()
+        self.running = False
+        if task is not None and was_on:
+            await asyncio.wait_for(asyncio.shield(task), timeout=3)
+        result = "stopped" if was_on else "already_off"
+        logger.info("VOICE_LOOK request worker=%s enabled=false result=%s", self.worker, result)
+        return {"enabled": False, "turning_to_voices": False}
+
+    async def run(self) -> None:
+        """The worker loop; cancellation (app shutdown) always cleans up."""
         logger.info("VOICE_LOOK on worker=%s", self.worker)
+        ended = "stopped"
         try:
             while self.running:
                 state = {"speaking": bool(getattr(self.deps.movement_manager, "_is_speaking", False))}
@@ -219,38 +253,53 @@ class StockFollower:
                 except (OSError, ValueError, TimeoutError) as error:
                     logger.warning("VOICE_LOOK poll worker=%s error=%s", self.worker, type(error).__name__)
                 await asyncio.sleep(POLL_S)
+        except asyncio.CancelledError:
+            ended = "cancelled"  # app shutdown or tool reload
+            raise
         finally:
             self.running = False
-            logger.info("VOICE_LOOK off worker=%s", self.worker)
-        return {"enabled": False, "running": False, "worker": self.worker}
+            logger.info("VOICE_LOOK off worker=%s reason=%s", self.worker, ended)
 
 
 class VoiceLook(Tool):  # type: ignore[misc]
-    """Enable/disable speaker following through the app's managed background-tool task."""
+    """Start or stop turning toward whoever is speaking; replies immediately."""
 
     name = "voice_look"
-    needs_response = False
     description = (
-        "Follow the speaker with head and body. Following starts automatically with the conversation. "
-        "enabled=false stops following; enabled=true resumes. The enabled task runs in the background until "
-        "stopped; do not call it repeatedly or wait for completion before continuing a conversation."
+        "Turns the robot's head and body toward whoever is talking, using the direction their voice comes "
+        "from (microphones, not the camera; it works when the person is out of view). At the start of every "
+        "conversation, call this once with no arguments to turn it on, unless the user has asked you not to; "
+        "there is no need to mention that. Later, use it when the user wants the robot to stop or resume "
+        "turning toward voices, for example 'turn to whoever is talking', 'turn round when I speak', 'stop "
+        "turning every time someone talks' or 'keep your head still', and briefly confirm the new state. For "
+        "following a face with the camera, use head_tracking instead. Replies at once."
     )
     parameters_schema: dict[str, Any] = {
         "type": "object",
-        "properties": {"enabled": {"type": "boolean"}},
-        "required": ["enabled"],
+        "properties": {
+            "enabled": {
+                "type": "boolean",
+                "description": "true (default) to turn toward whoever is speaking; false to stop and keep the "
+                "head where it is.",
+            }
+        },
+        "required": [],
     }
 
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
-        """The app manager owns the coroutine lifetime, including backend restart and shutdown."""
+        """Start or stop the worker; never wait for it to finish."""
         enabled = kwargs.get("enabled", True)
         if not isinstance(enabled, bool):
             raise ValueError("enabled must be boolean")
-        manager = deps.movement_manager
-        owner = vars(manager).setdefault("_stock_voice_follower", StockFollower(deps))
-        if not enabled:
-            owner.running = False
-            if owner.task is not None and not owner.task.done():
-                await asyncio.wait_for(asyncio.shield(owner.task), timeout=3)
-            return {"enabled": False, "running": False}
-        return await owner.run()  # type: ignore[no-any-return]
+        store = vars(deps.movement_manager)
+        owner = store.get("_stock_voice_follower")
+        if not isinstance(owner, StockFollower):
+            if owner is not None:  # a worker from before a tool reload: end its loop before replacing it
+                logger.info("VOICE_LOOK replacing worker from before a tool reload")
+                owner.running = False
+                old_task = getattr(owner, "task", None)
+                if old_task is not None and not old_task.done():
+                    with contextlib.suppress(TimeoutError):
+                        await asyncio.wait_for(asyncio.shield(old_task), timeout=3)
+            owner = store["_stock_voice_follower"] = StockFollower(deps)
+        return await (owner.start() if enabled else owner.stop())
