@@ -12,6 +12,7 @@ Paths and launch configuration: [setup](development_setup.md).
 | `weather` | Optional `place`, `period` (now/today/tomorrow/hourly/weekend/week), `units`; UK Met Office model via Open-Meteo for UK places; ambiguous names return candidates |
 | `news` | Optional `topic`: BBC section (top, world, uk, politics, business, technology, science, health, entertainment) or any subject via Tavily news search; numbered, saved for follow-up |
 | `web_search` | `query`, optional `recent` (day/week/month/year); Tavily; numbered results saved for follow-up |
+| `photo` | No arguments; levels the head (roll 0) if tilted, takes one frame, restores the pose; saves `photo.jpg` + `photo.json` (pose, time, resolution) owner-only in `~/.local/share/reachy-tools/camera/`, replacing the last. Nothing goes to the model |
 | `sleep` | No arguments; starts the wake watcher, then Pollen's sleep (pose, app stops, motors off); stays awake if the watcher cannot start. Replaces `go_to_sleep` |
 | `approve_site` | `site`; adds the exact refused site to `approved_sites.txt` only if the transcript shows the robot named it and the user said or typed yes; permanent |
 | `read_article` | `number` from the last search/news list, `link` from the last page read, or `url`; fetches the page directly, text via BeautifulSoup (max 8000 characters) plus its links in page order; local and private addresses refused with a reason |

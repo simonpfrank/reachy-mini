@@ -107,6 +107,43 @@ Existing notes, moved here; the requirement is still to be agreed:
 
 ## Step 4c — Room scan (to define)
 
+Simon's direction (2026-10-18), still to be agreed as requirements:
+
+- **Build in layers, recording before analysis:**
+  1. Capture: the private camera tool takes a photo with its metadata (head/body pose, time).
+  2. Scan: repeated captures that cover everything the robot can see, with coverage metadata.
+  3. Analysis: a base level that runs on the robot, plus optional enhancements where the user chooses a model
+     (e.g. on the Mac), behind one simple interface.
+  4. Map: landmarks, objects and people built from the analysis.
+  Publish the basic tools later, so keep them free of personal paths and data. Face images wait for 4d.
+- **Photos are level:** the scan commands roll 0 for every pose; a one-off photo levels the head (roll 0, keeping
+  yaw and pitch), takes the photo, then restores the previous pose. Every photo records its full pose.
+- **To do: pose correction for level photos.** Measured 2026-10-18: at rest the head's measured roll moved
+  between −3° and −6°, while the app's leveling (commanding roll 0) completed at once, so commanding level does
+  not make the head level. Cause unknown; investigate first (Pollen's breathing move and the app's continuous
+  pose updates, head kinematics, measured versus commanded pose at rest) before any code. Fallback: straighten
+  each photo in analysis using its recorded roll.
+- **Experiment, after phase 1:** switch to full resolution (4608×2592), take a photo, restore the default, and
+  check nothing else is disrupted (Pollen's camera tool, face tracking, video stream, voice following). Also check
+  whether it gives real extra detail on the robot or only resizes the default stream.
+- **Phase 1 retention, until 4d:** photos stay on the robot only. A scan follows a fixed pattern, so it has a fixed
+  number of photo slots, overwritten by each new scan. One-off photos keep only the latest, also overwritten. Leave
+  room to keep chosen photos later (e.g. mementos).
+- **Built 2026-10-18: `photo`**, the one-off private photo; see [tools](tools.md). Live run: it saves the photo
+  and its measured pose correctly, but leveling does not work yet (see pose correction below).
+- **First build piece: a private camera component.** Takes a photo, records the head/body pose it was taken at,
+  and runs detection locally; photos never leave the house. Room scan, people and faces build on it. Pollen's
+  `camera` tool stays for conversational descriptions where sending a photo to HF is allowed (4d).
+- **The robot's zero moves when it is moved.** Re-anchor to fixed features (kitchen, TV) so observations from an
+  hour ago map onto the new scan. No matching features means a different room (e.g. the office): a separate map.
+- **Movable objects are labelled by what makes them unique, not where they are:** Lisa's chair moves whenever she
+  is put in or taken out, but it is the only black chair in the room.
+- **Detection in tiers:** basic detection on the robot always works; a small model on the Mac improves it when
+  the Mac is available; the system must work without the Mac.
+- **People:** whole body, with a face sub-record, for later face tracking and focusing the camera on a face.
+- **Triggers:** start with a tool on request; state changes (wake, long time passed, people coming and going)
+  later.
+
 Existing notes, moved here; the requirement is still to be agreed:
 
 - **B-SCAN — Scan:** exclusive cancellable app-owned motion; pause following and restore its previous state.
@@ -149,6 +186,13 @@ Speaker muted, TV on, 12:20–12:36. Evidence from the app log:
 6. **Language misdetected.** TV speech was transcribed as Chinese several times; the transcription language is
    unset (left as is for now, 2026-10-18).
 7. **Backend session drops** (12:31:26 here; several daily). Pollen's hosted backend; the hub retries typed text once.
+8. **Aim drifts away from the speaker (20:10–20:16).** With Simon presumably still, successive heard bearings went
+   −58°, −29°, −117°, −144°, −205°, ending behind the robot; the robot apologised for its orientation. Hypothesis
+   (unverified): the sound direction and head/body angles are combined in the wrong frame (e.g. the mic array
+   turns with the head), so each turn compounds the last. Not a tool conflict: Pollen's `head_tracking` is not
+   loaded; persona switches reload tools and `voice_look` replaces its worker cleanly.
+9. **Motor communication errors.** "Motor communication error! Check connections and power supply." 34 times on
+   2026-10-18 (twice at 20:15); motors reported fine afterwards. Check cable and power; may affect any motion.
 
 ## Step 4d — Information security levels (to define)
 
@@ -236,7 +280,8 @@ Requested 2026-10-15. Record for discussion only; no implementation or service c
 - **Web search is poor (seen 2026-10-13 via the hub).** Two faults: the AI searched "current movie list 2024" (doesn't know today's date) and Pollen's search Space returned "Electric current - Wikipedia"; it also sometimes returns "web search failed". Fix: Phase 2 replaces Pollen's search with `web_search` (P2-1).
 - **Which models answer us? (parked 2026-10-13; Simon wants all the possibilities)**
   - Today (hosted): app names no model; Pollen's forwarder (`pollen-robotics-reachy-mini-realtime-url.hf.space`, supports A/B) sends sessions to a private HF Inference Endpoint (`hkbax8u9qwedr1uv.endpoints.huggingface.cloud`). Voice list = Qwen3-TTS CustomVoice presets, so very likely HF speech-to-speech (Silero VAD -> STT, likely Parakeet -> vision-capable LLM -> Qwen3-TTS). LLM unconfirmed. Hosted reply speed baseline: first audio ~1.45 s after transcript (app's own "Turn latency" log).
-  - To confirm: run the app by hand on the robot with `--debug` (Pollen dev workflow) and read `session.created`.
+  - Found 2026-10-18: the allocator hands sessions to an HF Inference Endpoint whose public `/health` reports a pipeline of stt `openai`, llm `chat-completions`, tts `openai` (OpenAI-style interfaces; the app requests `gpt-4o-transcribe`), and 15 of 16 sessions in use (possible cause of session drops; unverified). The LLM is still unnamed.
+  - To confirm: ask Pollen. Checked 2026-10-18: `--debug` logs only event types, not the `session.created` contents, and Pollen's public session Space forwards to a hidden upstream (`UPSTREAM_SESSION_URL` secret, optional A/B split), so neither names the model.
   - Possibilities to compare: (a) Pollen hosted (free, unknown/changeable models, data to HF); (b) speech-to-speech on the Mac (choose each stage: STT Parakeet/Whisper; LLM Qwen3.5-4B in-process or Gemma via LM Studio; TTS Qwen3-TTS presets, Pocket TTS clone, OmniVoice clone, or our Marvin endpoint); (c) our own HF Inference Endpoint (paid, our choice of models, still off-Mac); (d) other realtime providers (OpenAI, Gemini) for general mode only, never personal data.
 - **Voice: choosing vs adding.** Hosted: 9 presets only (Aiden, Ryan, Dylan, Eric, Ono_Anna, Serena, Sohee, Uncle_Fu, Vivian), set via `voice =` in profile.md or the UI. Own voice needs our backend (step 6/8): Marvin endpoint (tts-chatterbox), Pocket TTS or OmniVoice clone.
 - **Dashboard gap (seen 2026-10-14): when the app hears nothing there is no trace.** "Look up"/"look down" left no transcript, event or log line. Add: peak mic level over the last 10 s next to the sound bar, so a missed request shows whether the mic heard it. Firmware 2.1.4 adds +6 dB on the INPUT (changelog), which may help a quiet mic.

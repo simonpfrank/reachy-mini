@@ -32,6 +32,7 @@ If either is down, those tests fail and say what to start.
 | Voice following | `tests/unit/test_voice_look_tool.py` |
 | Public tools (weather, news, web search, read_article, keys) | `tests/unit/test_weather_tool.py`, `test_public_tools.py`, `test_read_article.py` |
 | Site approval (user's yes from the transcript; model cannot approve alone) | `tests/unit/test_approve_site.py`, `tests/integration/test_approval_robot.py` |
+| Private photo (level, pose, owner-only, latest only) | `tests/unit/test_photo_tool.py`; no integration test yet: the camera is held by the running app |
 | Sleep and wake watcher | `tests/unit/test_sleep_tool.py`, `test_wake_watcher.py`, `tests/integration/test_wake_robot.py` |
 | Retired patch refusal/source transforms | `tests/unit/test_patch_retirement.py`, `test_voice_look_install.py`; helpers now under `archive/retired_patches/` |
 | Real robot daemon, app and hub | `tests/integration/test_sources_robot.py`, `test_server_robot.py`, `test_approval_robot.py` |
