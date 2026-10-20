@@ -4,6 +4,11 @@ import os
 from pathlib import Path
 
 
+def state_dir() -> Path:
+    """Where tools keep their settings and remembered state: outside the repository and the app, so updates keep it."""
+    return Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
+
+
 def camera_dir() -> Path:
     """Where the one-off photo is kept: on the robot, outside the repository."""
     return Path(os.environ.get("REACHY_TOOLS_CAMERA_DIR", "~/.local/share/reachy-tools/camera")).expanduser()

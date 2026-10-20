@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 import urllib.parse
 from pathlib import Path
@@ -20,6 +21,9 @@ from typing import Any
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 from websockets.sync.client import connect
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.storage import state_dir  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 SEED_SITES = ("bbc.co.uk", "bbc.com", "theguardian.com", "reuters.com", "apnews.com", "metoffice.gov.uk")
@@ -29,11 +33,6 @@ ANSWER_WAIT_S = 3.0  # the user's transcript can arrive just after the model's t
 YES = frozenset({"yes", "yeah", "yep", "yup", "sure", "ok", "okay", "allow", "approve", "fine"})
 NO = frozenset({"no", "nope", "not", "don't", "dont", "never", "stop", "cancel"})
 SECOND_LEVEL = frozenset({"co", "com", "org", "gov", "ac", "net"})  # e.g. bbc.co.uk
-
-
-def state_dir() -> Path:
-    """External tool state, outside the repository and the app."""
-    return Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
 
 
 def host_of(site: str) -> str:

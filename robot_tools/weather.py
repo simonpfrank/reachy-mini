@@ -8,7 +8,7 @@ Standard library only; HTTPS to two fixed Open-Meteo hosts with a timeout and a 
 import asyncio
 import json
 import logging
-import os
+import sys
 import urllib.parse
 import urllib.request
 from datetime import date, timedelta
@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import Any
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.storage import state_dir  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -84,8 +87,7 @@ def get_json(url: str, params: dict[str, Any]) -> Any:
 
 def home_location(path: Path | None = None) -> dict[str, Any]:
     """The configured home place, read from the same file as the location tool."""
-    directory = Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
-    path = path or directory / "location.json"
+    path = path or state_dir() / "location.json"
     configured = json.loads(path.read_text()) if path.exists() else {}
     if not isinstance(configured, dict):
         raise ValueError("Location settings must be a JSON object")

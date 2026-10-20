@@ -9,7 +9,6 @@ encrypted store, managed with scripts/keys.sh).
 import asyncio
 import json
 import logging
-import os
 import sys
 import urllib.error
 import urllib.request
@@ -22,6 +21,7 @@ from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
 from reachy_lib.keys import KeyNotSet, get_key  # noqa: E402
+from reachy_lib.storage import state_dir  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 BBC_FEED = "https://feeds.bbci.co.uk/news/{section}rss.xml"
@@ -40,11 +40,6 @@ SEARCH_URL = "https://api.tavily.com/search"
 TIMEOUT_S = 15
 MAX_BYTES = 2_000_000
 MAX_HEADLINES = 8
-
-
-def state_dir() -> Path:
-    """External tool state, outside the repository and the app."""
-    return Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
 
 
 def tavily_key() -> str:

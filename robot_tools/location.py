@@ -2,12 +2,15 @@
 
 import json
 import math
-import os
+import sys
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.storage import state_dir  # noqa: E402
 
 DEFAULT_LOCATION: dict[str, Any] = {
     "place": "Cobham", "region": "Surrey", "country": "United Kingdom", "country_code": "GB",
@@ -17,8 +20,7 @@ DEFAULT_LOCATION: dict[str, Any] = {
 
 def location_path() -> Path:
     """Use external settings, independent of app updates and committed source."""
-    directory = Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
-    return directory / "location.json"
+    return state_dir() / "location.json"
 
 
 def location_payload(path: Path | None = None) -> dict[str, Any]:

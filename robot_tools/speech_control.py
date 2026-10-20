@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import sys
 import time
 import urllib.request
 from collections import deque
@@ -17,6 +18,9 @@ from pathlib import Path
 from typing import Any
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.storage import state_dir  # noqa: E402
 
 logger = logging.getLogger(__name__)
 QUIET_COMMANDS = {"shut up", "be quiet", "stop talking", "stop speaking", "stop answering", "quiet"}
@@ -38,8 +42,7 @@ def command_enabled(text: str) -> bool | None:
 
 def state_path() -> Path:
     """Keep quiet state outside the installed app so updates and restarts retain it."""
-    root = Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
-    return root / "speech.json"
+    return state_dir() / "speech.json"
 
 
 class SpeechState:
@@ -230,8 +233,7 @@ def _volume_api(route: str, payload: dict[str, Any] | None = None) -> int:
 
 def restore_path() -> Path:
     """Remembered speaker level for unmute, outside the repository."""
-    directory = Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
-    return directory / "speaker_restore.json"
+    return state_dir() / "speaker_restore.json"
 
 
 def set_speaker(enabled: bool | None) -> dict[str, Any]:

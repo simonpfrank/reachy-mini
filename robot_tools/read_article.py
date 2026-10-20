@@ -20,6 +20,7 @@ import logging
 import os
 import socket
 import ssl
+import sys
 import time
 import urllib.parse
 from pathlib import Path
@@ -27,6 +28,9 @@ from typing import Any
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 from websockets.sync.client import connect
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.storage import state_dir  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 RPC_URL = os.environ.get("REACHY_APP_RPC_URL", "ws://127.0.0.1:7860/rpc")
@@ -63,11 +67,6 @@ class NotApproved(Exception):
 
 class Refused(ValueError):
     """A URL the tool will not fetch; the message says why, for the robot to explain."""
-
-
-def state_dir() -> Path:
-    """External tool state, outside the repository and the app."""
-    return Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
 
 
 def selected(filename: str, number: int, missing: str) -> dict[str, Any]:
