@@ -105,9 +105,28 @@ Existing notes, moved here; the requirement is still to be agreed:
 - Anyone may use the wake word: it only starts a conversation. What each person may do is enforced by tools (4d).
 - Later sleep/wake behaviour (not in this step): [B-SLEEPWAKE](#further-candidates).
 
-## Step 4c — Room scan (to define)
+## Step 4c — Room scan (phase 1 agreed 2026-10-20)
 
-Simon's direction (2026-10-18), still to be agreed as requirements:
+**Phase 1 = the capture sequence only** (no analysis); defined in chat, no formal PRD. Iterate from there.
+
+- One row at level pitch, over the robot's full reach: start at full body yaw and full head yaw one way, step to
+  the other. Same fixed set of photos every scan, each saved with its measured pose.
+- Step = the camera's horizontal field of view × (1 − overlap), spread evenly so the last frame lands on the limit.
+  Body turns first; the head adds reach only beyond the body's limit.
+- Settings, not constants (environment / `.env`): overlap 25%, horizontal field of view (87°), separate left and
+  right limits for body yaw (−125° / +140°, the measured limits in `voice_look`) and head yaw (±35°, also
+  `voice_look`; the SDK allows 65°), pitch (0°). Recalibrate when the robot is back.
+- Moves go through the app's movement manager using a shared smooth move in `robot_tools/reachy_lib/` (not a
+  tool): yaw is interpolated as an angle, so a long turn cannot take the short way round. The scan captures the
+  pose first and moves back to it at the end.
+- Runs to completion, then the robot carries on with what it was doing (previous pose and state restored).
+- Keeps the latest scan's photos only, overwritten each time.
+- Callable as plain code by the model's tool now and lifecycle triggers later (wake, noise, PIR); each scan stores
+  a `reason`. Trigger rules, analysis and room-change detection come after the sequence is right.
+- Until the robot is repaired, testing is on the Mac: plan maths in unit tests; the sim does not move the head
+  and returns the same photo every time.
+
+Simon's direction (2026-10-18), later layers still to be agreed as requirements:
 
 - **Build in layers, recording before analysis:**
   1. Capture: the private camera tool takes a photo with its metadata (head/body pose, time).
@@ -116,8 +135,8 @@ Simon's direction (2026-10-18), still to be agreed as requirements:
      (e.g. on the Mac), behind one simple interface.
   4. Map: landmarks, objects and people built from the analysis.
   Publish the basic tools later, so keep them free of personal paths and data. Face images wait for 4d.
-- **Photos are level:** the scan commands roll 0 for every pose; a one-off photo levels the head (roll 0, keeping
-  yaw and pitch), takes the photo, then restores the previous pose. Every photo records its full pose.
+- **Photos are not levelled (changed 2026-10-20):** commanding roll 0 did not level the head, so levelling was
+  removed. Every photo records its measured pose, including roll, and analysis straightens using it.
 - **To do: pose correction for level photos.** Measured 2026-10-18: at rest the head's measured roll moved
   between −3° and −6°, while the app's leveling (commanding roll 0) completed at once, so commanding level does
   not make the head level. Cause unknown; investigate first (Pollen's breathing move and the app's continuous
@@ -129,8 +148,8 @@ Simon's direction (2026-10-18), still to be agreed as requirements:
 - **Phase 1 retention, until 4d:** photos stay on the robot only. A scan follows a fixed pattern, so it has a fixed
   number of photo slots, overwritten by each new scan. One-off photos keep only the latest, also overwritten. Leave
   room to keep chosen photos later (e.g. mementos).
-- **Built 2026-10-18: `photo`**, the one-off private photo; see [tools](tools.md). Live run: it saves the photo
-  and its measured pose correctly, but leveling does not work yet (see pose correction below).
+- **Built 2026-10-18: `photo`**, the one-off private photo; see [tools](tools.md). It saves the photo and its
+  measured pose; levelling was removed 2026-10-20.
 - **First build piece: a private camera component.** Takes a photo, records the head/body pose it was taken at,
   and runs detection locally; photos never leave the house. Room scan, people and faces build on it. Pollen's
   `camera` tool stays for conversational descriptions where sending a photo to HF is allowed (4d).
