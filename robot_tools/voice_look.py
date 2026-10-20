@@ -15,14 +15,18 @@ import json
 import logging
 import math
 import statistics
+import sys
 import time
 import urllib.request
 import uuid
+from pathlib import Path
 from typing import Any
 
-from reachy_mini.utils import create_head_pose  # type: ignore[import-untyped]
 from reachy_mini_conversation_app.moves import BreathingMove
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.motion import PoseMove, PoseSnapshot, angular_delta, from_pose, travel_seconds  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +43,6 @@ SETTLE_S = 0.4
 STOP_TIMEOUT_S = 2.5  # longer than the DOA request timeout; never replace a worker that has not exited
 MIN_EVIDENCE_S = 0.3
 MIN_DOMINANCE = 0.7
-
-
-def angular_delta(target: float, origin: float) -> float:
-    """Shortest signed angle in degrees."""
-    return (target - origin + 180.0) % 360.0 - 180.0
 
 
 def densest_group(values: list[float], width: float) -> list[float]:
@@ -77,7 +76,7 @@ def plan_turn(heading_deg: float, body_deg: float) -> tuple[float, float]:
 def turn_duration(heading: float, body: float, target_heading: float, target_body: float) -> float:
     """Allow the physical yaw path enough time, including a long turn around cable limits."""
     unwrapped_heading = body + angular_delta(heading, body)
-    return max(MOVE_S, abs(target_heading - unwrapped_heading) / 40.0, abs(target_body - body) / 35.0)
+    return travel_seconds(target_heading - unwrapped_heading, target_body - body, MOVE_S)
 
 
 def _read_doa() -> tuple[float, bool] | None:
@@ -98,36 +97,18 @@ class FacingBreath(BreathingMove):  # type: ignore[misc]
         body: float,
         duration: float = MOVE_S,
     ) -> None:
-        """Use the base constructor's public signature; keep all custom interpolation state here."""
+        """Use the base constructor's public signature; the interpolation is the shared PoseMove."""
         super().__init__(pose, antennas, duration)
-        self._pose = pose.copy()
-        self._antennas = antennas
         self._seconds = duration
-        self._from_body, self._to_body = start_body, body
-        raw_yaw = math.atan2(pose[1, 0], pose[0, 0])
-        self._from_yaw = start_body + math.radians(angular_delta(math.degrees(raw_yaw), math.degrees(start_body)))
-        self._to_yaw = heading
-        self._from_pitch = math.asin(max(-1.0, min(1.0, -float(pose[2, 0]))))
-        self._from_roll = math.atan2(pose[2, 1], pose[2, 2])
+        rest = PoseSnapshot(0.0, 0.0, 0.0, 0.0, 0.0, heading, body, antennas)  # level, centred, facing the target
+        self._move = PoseMove(from_pose(pose, start_body, antennas), rest, duration)
 
     def evaluate(self, t: float) -> tuple[Any, Any, float]:
-        """Implement the SDK Move contract without reading or changing base-class internals."""
-        progress = max(0.0, min(1.0, t / self._seconds))
-        eased = progress**3 * (10 - 15 * progress + 6 * progress**2)
-        rest = 1 - eased
-        z = float(self._pose[2, 3]) * rest
-        if progress >= 1:
-            z += 0.003 * math.sin(2 * math.pi * 0.1 * (t - self._seconds))
-        head = create_head_pose(
-            x=float(self._pose[0, 3]) * rest,
-            y=float(self._pose[1, 3]) * rest,
-            z=z,
-            roll=self._from_roll * rest,
-            pitch=self._from_pitch * rest,
-            yaw=self._from_yaw + eased * (self._to_yaw - self._from_yaw),
-            degrees=False,
-        )
-        return head, self._antennas, self._from_body + eased * (self._to_body - self._from_body)
+        """Implement the SDK Move contract: the shared move, plus a slow breathing sway once it has arrived."""
+        head, antennas, body = self._move.evaluate(t)
+        if t >= self._seconds:
+            head[2, 3] += 0.003 * math.sin(2 * math.pi * 0.1 * (t - self._seconds))
+        return head, antennas, body
 
 
 class StockFollower:

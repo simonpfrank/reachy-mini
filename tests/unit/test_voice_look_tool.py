@@ -11,6 +11,7 @@ from unittest.mock import Mock
 
 import numpy as np
 import pytest
+from reachy_mini.utils import create_head_pose
 
 TOOL = Path(__file__).resolve().parents[2] / "robot_tools" / "voice_look.py"
 
@@ -209,7 +210,7 @@ def test_full_yaw_path_keeps_body_and_relative_head_within_limits(runtime, start
     module = load()
     duration = module.turn_duration(start, body, target, target_body)
     move = module.FacingBreath(
-        module.create_head_pose(yaw=start),
+        create_head_pose(yaw=start),
         (0, 0),
         math.radians(body),
         math.radians(target),
@@ -235,7 +236,7 @@ async def test_on_off_and_turns_are_logged_with_their_reasons(runtime, caplog):
     await tool(deps, enabled=False)
     await tool(deps, enabled=False)
     follower = deps.movement_manager._stock_voice_follower
-    follower.pose = lambda: (module.create_head_pose(), 10.0, 0.0, (0, 0))
+    follower.pose = lambda: (create_head_pose(), 10.0, 0.0, (0, 0))
     deps.movement_manager.get_status = lambda: {}
     follower.queue((80.0, 45.0), 1.0, "voice", 80.0, 5)
     lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("VOICE_LOOK")]

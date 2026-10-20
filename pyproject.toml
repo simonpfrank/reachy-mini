@@ -53,8 +53,10 @@ convention = "google"
 
 [tool.mypy]
 strict = true
+mypy_path = "robot_tools"  # tools import reachy_lib after adding their own folder to sys.path
 files = ["reachy_hub", "robot_tools", "reachy_wake"]
-exclude = ["^archive/"]
+# reachy_lib is checked when a tool imports it; listing it here too would give its files two module names.
+exclude = ["^archive/", "^robot_tools/reachy_lib/"]
 
 [[tool.mypy.overrides]]
 # The conversation app is provided by the optional robot environment.

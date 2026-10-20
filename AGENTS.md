@@ -32,7 +32,7 @@ Simon is an experienced developer. We work as a team: discuss, agree, disagree, 
 
 ### Development Standards
 
-- **Check for existing functionality** before adding any; never duplicate it.
+- **Check for existing functionality** before adding any; never duplicate it. Code shared between robot tools lives in `robot_tools/reachy_lib/` (a subfolder, so the app never loads it as a tool; see [tools](docs/tools.md)): look there first, and move code in when a second tool needs it instead of copying. Keep it to plain functions and small classes for what is actually shared: D.R.Y. without over-engineering.
 - **Simplicity first.** No over-engineering, no stubs or placeholders, delete commented-out code. Max 500 lines per file, ~50 per function.
 - **TDD.** Write the failing unit test first; every bug fix gets a regression test. Keep `docs/test_summary.md` current.
 - **Unit tests** (`tests/unit/`) may mock. Aim for ~90% coverage; check it once per feature, not on every run.

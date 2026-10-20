@@ -9,7 +9,7 @@ sent to the model or off the robot: use Pollen's ``camera`` tool to have a pictu
 import asyncio
 import json
 import logging
-import os
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -19,34 +19,19 @@ import numpy.typing as npt
 from reachy_mini.utils.rotation import Rotation  # type: ignore[import-untyped]
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.storage import camera_dir, write_private  # noqa: E402
+
 LOG = logging.getLogger(__name__)
 SETTLE_S = 0.2  # let the wobble offset die away after it is switched off
 
 Pose = npt.NDArray[np.float64]
 
 
-def camera_dir() -> Path:
-    """Where photos are kept: on the robot, outside the repository."""
-    return Path(os.environ.get("REACHY_TOOLS_CAMERA_DIR", "~/.local/share/reachy-tools/camera")).expanduser()
-
-
 def head_angles(pose: Pose) -> tuple[float, float, float]:
     """(roll, pitch, yaw) in degrees, in the SDK's ``create_head_pose`` convention."""
     roll, pitch, yaw = Rotation.from_matrix(pose[:3, :3]).as_euler("xyz", degrees=True)
     return float(roll), float(pitch), float(yaw)
-
-
-def save(jpeg: bytes, meta: dict[str, Any]) -> None:
-    """Replace photo.jpg and photo.json, owner-only."""
-    directory = camera_dir()
-    directory.mkdir(parents=True, exist_ok=True)
-    directory.chmod(0o700)
-    for name, data in (("photo.jpg", jpeg), ("photo.json", json.dumps(meta, indent=2).encode())):
-        temporary = directory / f".{name}.tmp"
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, "wb") as file:
-            file.write(data)
-        temporary.replace(directory / name)
 
 
 async def take_photo(deps: ToolDependencies) -> dict[str, Any]:
@@ -70,7 +55,8 @@ async def take_photo(deps: ToolDependencies) -> dict[str, Any]:
         "body_yaw_deg": round(float(np.degrees(float(shot_joints[0]))), 2),
         "resolution": list(deps.reachy_mini.media.camera.resolution),
     }
-    await asyncio.to_thread(save, jpeg, meta)
+    files = {"photo.jpg": jpeg, "photo.json": json.dumps(meta, indent=2).encode()}
+    await asyncio.to_thread(write_private, camera_dir(), files)
     LOG.info("photo saved head=%s body=%.1f", meta["head_deg"], meta["body_yaw_deg"])
     return {
         "saved": True,
