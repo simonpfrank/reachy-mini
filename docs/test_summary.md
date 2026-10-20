@@ -37,6 +37,7 @@ If either is down, those tests fail and say what to start.
 | Shared tool library: pose capture, smooth moves, private storage | `tests/unit/test_reachy_lib_motion.py`, `test_reachy_lib_storage.py` |
 | API keys: lookup order, store/delete/list per platform and the `keys.py` command (unit, commands and Windows calls mocked); `keys.sh` with the real store (Keychain on a Mac, systemd-creds on the robot, throwaway names) | `tests/unit/test_reachy_lib_keys.py`; `tests/integration/test_keys_store.py` (run on the Mac only so far; the Linux branch is untested until the robot is back, and the Windows `ctypes` calls and `.bat` files are untested until run on Windows) |
 | Hub settings (`.env`) | `tests/unit/test_main.py` |
+| `scripts/hub.sh` start, status, restart, stop with real processes on a spare port (run on the Mac; the Linux branch is untested until the robot is back) | `tests/integration/test_hub_script.py` |
 | Sleep and wake watcher | `tests/unit/test_sleep_tool.py`, `test_wake_watcher.py`, `tests/integration/test_wake_robot.py` |
 | Retired patch refusal/source transforms | `tests/unit/test_patch_retirement.py`, `test_voice_look_install.py`; helpers now under `archive/retired_patches/` |
 | Real robot daemon, app and hub | `tests/integration/test_sources_robot.py`, `test_server_robot.py`, `test_approval_robot.py` |

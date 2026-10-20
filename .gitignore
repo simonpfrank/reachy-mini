@@ -28,6 +28,3 @@ agents.local.md
 
 # Robot backups (may contain personal memory)
 backups/
-
-# Hub runtime state on the Mac (log)
-.hub/

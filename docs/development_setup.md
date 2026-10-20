@@ -15,6 +15,11 @@ Repository: `/home/pollen/projects/reachy-tools`. Documentation index: [README](
    on the Mac. It keeps running until `scripts/hub.sh stop` or a restart; `status` shows the address. While
    running it is visible to the home network, transcripts included. **Reachy: telemetry hub** (F5) remains
    for debugging, robot-only through a forwarded port; stop one before starting the other.
+   The same script runs on the Mac for the sim (`start`, `stop`, `restart`, `status`; `scripts\hub.bat` on Windows
+   runs it in the window): it listens on this machine only, takes `REACHY_HOST` from `.env`, and finds the hub by
+   its port, so one you started by hand is managed too. Its log is `~/.local/share/reachy-tools/hub.log`.
+   The Linux branch (home-network listening, the robot's own daemon) is unchanged in intent but untested until the
+   robot is back; on the robot it now also manages a hub started with F5.
 
 Do not run two conversation apps or competing motion writers.
 
