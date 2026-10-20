@@ -225,6 +225,32 @@ def test_full_yaw_path_keeps_body_and_relative_head_within_limits(runtime, start
     assert abs(module.angular_delta(heading, target)) < 0.00001
 
 
+
+@pytest.mark.parametrize(
+    "start,body,target,target_body",
+    [(0, 0, 100, 65), (-75, -110, -20, -55), (-90, -125, -140, -125), (-60, -95, 175, 140)],
+)
+def test_turns_never_exceed_the_peak_speed_limits(runtime, start, body, target, target_body):
+    _, load, *_ = runtime
+    module = load()
+    duration = module.turn_duration(start, body, target, target_body)
+    move = module.FacingBreath(
+        create_head_pose(yaw=start),
+        (0, 0),
+        math.radians(body),
+        math.radians(target),
+        math.radians(target_body),
+        duration,
+    )
+    moments = np.linspace(0, duration, 400)
+    samples = [move.evaluate(float(t)) for t in moments]
+    bodies = np.degrees([sample[2] for sample in samples])
+    heads = np.degrees(np.unwrap([math.atan2(s[0][1, 0], s[0][0, 0]) for s in samples]))
+    step = moments[1] - moments[0]
+    # the limits (head 40, body 35 deg/s) are in reachy_lib.motion
+    assert np.abs(np.diff(bodies)).max() / step <= 35 * 1.01
+    assert np.abs(np.diff(heads)).max() / step <= 40 * 1.01
+
 @pytest.mark.asyncio
 async def test_on_off_and_turns_are_logged_with_their_reasons(runtime, caplog):
     deps, load, *_ = runtime

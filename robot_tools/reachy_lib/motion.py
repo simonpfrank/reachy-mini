@@ -20,9 +20,10 @@ import numpy.typing as npt
 from reachy_mini.motion.move import Move  # type: ignore[import-untyped]
 from reachy_mini.utils import create_head_pose  # type: ignore[import-untyped]
 
-HEAD_SPEED_DEG_S = 40.0  # slowest head yaw speed a move may need, from the voice_look turns
-BODY_SPEED_DEG_S = 35.0
+HEAD_SPEED_DEG_S = 40.0  # fastest the head may turn at any instant (from the voice_look turns)
+BODY_SPEED_DEG_S = 35.0  # fastest the body may turn at any instant; recalibrate on the robot
 MIN_MOVE_S = 1.0
+MIN_JERK_PEAK = 1.875  # a minimum-jerk move peaks at this multiple of its average speed, so it needs this much longer
 
 
 def angular_delta(target: float, origin: float) -> float:
@@ -79,8 +80,14 @@ def facing(start: PoseSnapshot, heading_deg: float, body_deg: float, pitch_deg: 
 
 
 def travel_seconds(head_deg: float, body_deg: float, min_s: float = MIN_MOVE_S) -> float:
-    """Seconds needed to turn the head and body by these angles (either sign) within their speed limits."""
-    return max(min_s, abs(head_deg) / HEAD_SPEED_DEG_S, abs(body_deg) / BODY_SPEED_DEG_S)
+    """Seconds a minimum-jerk move needs to turn the head and body by these angles (either sign).
+
+    Neither goes faster than its speed limit at any instant. The limits are peak speeds, not averages: the move is
+    slowest at its ends and peaks mid-way at ``MIN_JERK_PEAK`` times its average speed.
+    """
+    head = MIN_JERK_PEAK * abs(head_deg) / HEAD_SPEED_DEG_S
+    body = MIN_JERK_PEAK * abs(body_deg) / BODY_SPEED_DEG_S
+    return max(min_s, head, body)
 
 
 def move_duration(start: PoseSnapshot, target: PoseSnapshot, min_s: float = MIN_MOVE_S) -> float:

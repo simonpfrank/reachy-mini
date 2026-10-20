@@ -96,13 +96,13 @@ def test_duration_grows_with_the_angle_and_has_a_floor(motion):
     start = motion.snapshot(fake_robot(yaw=0, body=0))
     far = motion.facing(start, heading_deg=-195, body_deg=-125, pitch_deg=0)
     near = motion.facing(start, heading_deg=5, body_deg=0, pitch_deg=0)
-    assert motion.move_duration(start, far) == pytest.approx(195 / 40)
+    assert motion.move_duration(start, far) == pytest.approx(1.875 * 195 / 40)
     assert motion.move_duration(start, near) == 1.0
 
 
 def test_travel_seconds_obeys_the_speed_limits_in_either_direction(motion):
-    assert motion.travel_seconds(80, 0) == pytest.approx(2.0)  # head: 40 deg/s
-    assert motion.travel_seconds(0, -70) == pytest.approx(2.0)  # body: 35 deg/s
+    assert motion.travel_seconds(80, 0) == pytest.approx(3.75)  # 80 deg at a 40 deg/s peak: 1.875 x 80 / 40
+    assert motion.travel_seconds(0, -70) == pytest.approx(3.75)  # 70 deg at a 35 deg/s peak: 1.875 x 70 / 35
     assert motion.travel_seconds(10, 10) == 1.0  # the floor
     assert motion.travel_seconds(1, 1, min_s=0.2) == 0.2
 
@@ -118,3 +118,24 @@ def test_the_default_duration_is_the_computed_one(motion):
     start = motion.snapshot(fake_robot())
     target = motion.facing(start, heading_deg=-195, body_deg=-125, pitch_deg=0)
     assert motion.PoseMove(start, target).duration == motion.move_duration(start, target)
+
+
+def peak_speeds(move) -> tuple[float, float]:
+    """Highest body and head yaw speed (deg/s) anywhere along the move, read back from what it commands."""
+    moments = np.linspace(0, move.duration, 400)
+    samples = [move.evaluate(float(t)) for t in moments]
+    body = np.degrees([sample[2] for sample in samples])
+    head = np.degrees(np.unwrap([math.atan2(s[0][1, 0], s[0][0, 0]) for s in samples]))
+    step = moments[1] - moments[0]
+    return float(np.abs(np.diff(body)).max() / step), float(np.abs(np.diff(head)).max() / step)
+
+
+@pytest.mark.parametrize(
+    ("start_heading", "start_body", "heading", "body"),
+    [(0, 0, -195, -125), (-170, -125, 170, 140), (-75, -110, -20, -55), (-90, -125, -140, -125), (10, 5, 40, 20)],
+)
+def test_no_move_goes_faster_than_the_speed_limits_at_any_instant(motion, start_heading, start_body, heading, body):
+    start = motion.snapshot(fake_robot(yaw=start_heading, body=start_body))
+    move = motion.PoseMove(start, motion.facing(start, heading_deg=heading, body_deg=body, pitch_deg=0))
+    body_peak, head_peak = peak_speeds(move)
+    assert body_peak <= motion.BODY_SPEED_DEG_S * 1.01 and head_peak <= motion.HEAD_SPEED_DEG_S * 1.01

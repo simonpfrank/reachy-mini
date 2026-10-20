@@ -311,8 +311,7 @@ class RoomScan(Tool):  # type: ignore[misc]
         "steps, then turns back to where it was facing and carries on. Use it when the user wants the robot to "
         "scan or look around the room, to check the room, or asks what or who is in the room. The photos are kept "
         "privately on the robot and cannot be analysed or described yet, so you cannot see them: never claim to "
-        "know what is in the room, only that a scan was taken. Replies at once; the scan takes a little under "
-        "half a minute."
+        "know what is in the room, only that a scan was taken. Replies at once; the scan takes about 40 seconds."
     )
     parameters_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
@@ -328,6 +327,6 @@ class RoomScan(Tool):  # type: ignore[misc]
         store[TASK_KEY] = asyncio.create_task(_run_in_background(deps, settings))
         return {
             "started": True,
-            "note": "Scanning the room now; it takes a little under half a minute. The photos are saved privately "
+            "note": "Scanning the room now; it takes about 40 seconds. The photos are saved privately "
             "on the robot and you cannot see them yet, so do not say what is in the room.",
         }
