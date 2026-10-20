@@ -43,6 +43,29 @@ reinstall ever replaces `/venvs/apps_venv`. The same pin is in `pyproject.toml` 
 `.env.example` records development settings. Actual `.env` and mutable state are
 excluded from Git. `AUTOLOAD_EXTERNAL_TOOLS=0` avoids directory-wide discovery. There is no relay (retired 2026-10-16).
 
+## Sim (Mac)
+
+Base: `~/Library/Application Support/com.pollen-robotics.reachy-mini/`, managed by the Reachy Mini Control
+app (checked 2026-10-19). The sim equivalent of the robot's `/venvs/apps_venv` is **`apps_venv` under that base**.
+
+| What | Path under base | Notes |
+|---|---|---|
+| Daemon venv | `.venv` | Runs `reachy_mini.daemon.app.main --mockup-sim`; reachy_mini 1.12.0 |
+| Apps venv (conversation app runs here) | `apps_venv` | reachy_mini 1.12.0, reachy_mini_conversation_app 1.1.1. Not the project `.venv` |
+
+### Simulator config
+The sim app loads **`~/.env`** (the Mac equivalent of the robot's `/venvs/.env`; confirmed working 2026-10-20).
+Current settings:
+
+| Variable | Value |
+|---|---|
+| `REACHY_MINI_EXTERNAL_TOOLS_DIRECTORY` | `/Users/simonfrank/Documents/dev/python/reachy-mini/robot_tools` (the project's own folder, as on the robot) |
+| `AUTOLOAD_EXTERNAL_TOOLS` | `1` |
+| `HF_TOKEN` | set (secret: keep the file `chmod 600`; not in the repo) |
+
+Seen once: `ModuleNotFoundError: reachy_mini.io.jsonrpc` starting the app in sim, though the module exists
+in `apps_venv`; cause not found, and it started fine later.
+
 ## API keys
 
 Keys are stored encrypted with `systemd-creds --user`, never in Git or plain text. Manage them on the robot
