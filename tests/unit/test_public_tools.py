@@ -33,6 +33,8 @@ ROOT = Path(__file__).resolve().parents[2]
 BBC_FEED = (ROOT / "tests" / "data" / "news_bbc_top.xml").read_bytes()
 KEY = "tvly-test-secret"
 
+from reachy_lib import keys as key_store  # noqa: E402  (importable now the tools have added their folder to sys.path)
+
 
 @pytest.fixture
 def web(monkeypatch, tmp_path):
@@ -49,7 +51,9 @@ def web(monkeypatch, tmp_path):
         decrypts.append(argv)
         return subprocess.CompletedProcess(argv, decrypted["returncode"], decrypted["stdout"], b"")
 
-    monkeypatch.setattr(web_search.subprocess, "run", run)
+    monkeypatch.setattr(key_store.subprocess, "run", run)
+    monkeypatch.setattr(key_store, "store_kind", lambda: "systemd")  # the keys are systemd files whatever runs this
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
     calls: list[dict[str, Any]] = []
     replies: dict[str, Any] = {
         web_search.SEARCH_URL: {
@@ -100,7 +104,7 @@ def test_search_sends_key_privately_and_numbers_results(web):
 
 def test_key_is_decrypted_by_systemd_for_this_user(web):
     web_search.search_payload("anything")
-    assert web.decrypts == [[web_search.SYSTEMD_CREDS, "--user", "--name=tavily", "decrypt", str(web.key), "-"]]
+    assert web.decrypts == [[key_store.SYSTEMD_CREDS, "--user", "--name=tavily", "decrypt", str(web.key), "-"]]
 
 
 def test_undecryptable_or_missing_key_stops_before_any_request(web):
@@ -127,18 +131,6 @@ def keys(*args: str, stdin: bytes | None = None) -> bytes:
 
 def test_keys_script_is_valid_bash():
     keys("-n")
-
-
-def test_keys_script_stores_encrypted_key_the_tools_can_read(monkeypatch, tmp_path):
-    monkeypatch.setenv("REACHY_TOOLS_KEYS_DIR", str(tmp_path))
-    keys("add", "tavily", stdin=b"dummy-not-a-key\n")
-    assert b"dummy-not-a-key" not in (tmp_path / "tavily.cred").read_bytes()
-    assert (tmp_path / "tavily.cred").stat().st_mode & 0o077 == 0
-    assert web_search.tavily_key() == "dummy-not-a-key"
-    assert keys("list") == b"tavily\n"
-    keys("remove", "tavily")
-    with pytest.raises(RuntimeError, match="not set up"):
-        web_search.tavily_key()
 
 
 def test_provider_refusal_is_explicit_and_never_shows_the_key(web):

@@ -40,21 +40,31 @@ None of these belong in Git.
 
 ## API keys
 
-Keys live in `~/.config/reachy_tools/keys/<name>.cred` (`REACHY_TOOLS_KEYS_DIR` overrides it, for
-tests), shared by the development and live tools. Each is encrypted with `systemd-creds --user`: the
-file is unreadable off the robot or by another user, and nothing is decrypted to disk. Tools run
-`/usr/bin/systemd-creds --user --name=<name> decrypt` for each request and keep the key in memory only.
-Accepted limit: anything running as `pollen` can decrypt it. `.claude/settings.json` denies Claude
-reading the files or running the decrypt. Only the Tavily key (`tavily`) is used so far.
+Tools get a key with `reachy_lib.keys.get_key(name)`, the same call on the robot and the Mac. It tries, in order:
 
-Manage keys on the robot, in the project folder; no sudo needed:
+| Source | Where |
+|---|---|
+| Environment variable `<NAME>_API_KEY` | e.g. `TAVILY_API_KEY` in `~/.env` for the sim; also used by tests. Plain text, so keep the file `chmod 600` |
+| Robot (Linux): `systemd-creds` | `~/.config/reachy_tools/keys/<name>.cred` (`REACHY_TOOLS_KEYS_DIR` overrides it, for tests), shared by the development and live tools. Encrypted with `systemd-creds --user`: unreadable off the robot or by another user, nothing decrypted to disk |
+| Mac: login Keychain | Service `reachy-tools`, account = key name (`REACHY_TOOLS_KEYCHAIN_SERVICE` overrides it, for tests). The first read may ask once to allow access |
+| Windows: Credential Manager | Generic credential `reachy-tools/<name>` (same override for the prefix), through `ctypes`. **Not yet tested on Windows** |
+
+Keys are read for each request and kept in memory only. Accepted limit on the robot: anything running as `pollen` can
+decrypt it. `.claude/settings.json` denies Claude reading the files or running the decrypt. Only the Tavily key
+(`tavily`) is used so far.
+
+Manage keys with `scripts/keys.sh` from the project folder, on the robot or the Mac, or `scripts\keys.bat` on
+Windows; no sudo needed. Both just run `robot_tools/reachy_lib/keys.py` with the project `.venv`, where the logic
+lives once:
 
 | Task | Command |
 |---|---|
 | Add or replace a key (paste it at the hidden prompt) | `scripts/keys.sh add tavily` |
-| Check a key is stored and decrypts (never shown) | `scripts/keys.sh check tavily` |
-| List stored key names | `scripts/keys.sh list` |
+| Check a key is stored and readable (never shown) | `scripts/keys.sh check tavily` |
+| List stored key names (robot only: the Keychain cannot be listed this way) | `scripts/keys.sh list` |
 | Delete a key | `scripts/keys.sh remove tavily` |
+
+On a Mac a key may only use letters, digits and `. _ ~ + / = : -`; anything else is refused, not stored.
 
 `robot_tools/` contains the tool files and package marker, plus `reachy_lib/`: shared code for the tools (smooth
 moves, pose capture), not a tool. The app loads only top-level `*.py` files as tools, so a subfolder is ignored;

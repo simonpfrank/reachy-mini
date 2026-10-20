@@ -2,14 +2,15 @@
 
 Headlines are numbered and saved so "the second one" means the same story after tool reloads and
 reconnects; read_article opens it. Standard library only; HTTPS to fixed hosts with timeouts and
-size caps. Topic searches need the Tavily key, stored encrypted by systemd (scripts/keys.sh).
+size caps. Topic searches need the Tavily key (see reachy_lib.keys: environment variable or the platform's
+encrypted store, managed with scripts/keys.sh).
 """
 
 import asyncio
 import json
 import logging
 import os
-import subprocess
+import sys
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET  # noqa: S405 -- parses only the fixed BBC feed host
@@ -18,6 +19,9 @@ from pathlib import Path
 from typing import Any
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.keys import KeyNotSet, get_key  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 BBC_FEED = "https://feeds.bbci.co.uk/news/{section}rss.xml"
@@ -33,7 +37,6 @@ SECTIONS = {
     "entertainment": "entertainment_and_arts/",
 }
 SEARCH_URL = "https://api.tavily.com/search"
-SYSTEMD_CREDS = "/usr/bin/systemd-creds"
 TIMEOUT_S = 15
 MAX_BYTES = 2_000_000
 MAX_HEADLINES = 8
@@ -44,29 +47,12 @@ def state_dir() -> Path:
     return Path(os.environ.get("REACHY_TOOLS_STATE_DIR", "~/.config/reachy_tools")).expanduser()
 
 
-def keys_dir() -> Path:
-    """Encrypted API keys, shared by the development and live tools; managed with scripts/keys.sh."""
-    return Path(os.environ.get("REACHY_TOOLS_KEYS_DIR", "~/.config/reachy_tools/keys")).expanduser()
-
-
 def tavily_key() -> str:
-    """The Tavily key, decrypted by systemd for this user; never from source, prompts or arguments."""
-    path = keys_dir() / "tavily.cred"
-    if not path.exists():
-        raise RuntimeError("Topic news is not set up: no Tavily key (scripts/keys.sh add tavily)")
+    """The Tavily key; never from source, prompts or arguments."""
     try:
-        result = subprocess.run(  # noqa: S603 -- fixed command, no shell
-            [SYSTEMD_CREDS, "--user", "--name=tavily", "decrypt", str(path), "-"],
-            capture_output=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise RuntimeError(f"Topic news key could not be decrypted ({type(error).__name__})") from error
-    key = result.stdout.decode().strip() if result.returncode == 0 else ""
-    if not key:
-        raise RuntimeError("Topic news key could not be decrypted (scripts/keys.sh check tavily)")
-    return key
+        return get_key("tavily")
+    except KeyNotSet as error:
+        raise RuntimeError("Topic news is not set up: no Tavily key (scripts/keys.sh add tavily)") from error
 
 
 def fetch(request: urllib.request.Request, provider: str) -> bytes:

@@ -35,6 +35,7 @@ If either is down, those tests fail and say what to start.
 | Private photo (pose, owner-only, latest only; no levelling) | `tests/unit/test_photo_tool.py`; no integration test yet: the camera is held by the running app |
 | Room scan: planner and settings, one-move timeline, runner, tool (unit only; not yet run in the app or on the robot) | `tests/unit/test_room_scan_plan.py`, `test_room_scan_run.py` |
 | Shared tool library: pose capture, smooth moves, private storage | `tests/unit/test_reachy_lib_motion.py`, `test_reachy_lib_storage.py` |
+| API keys: lookup order, store/delete/list per platform and the `keys.py` command (unit, commands and Windows calls mocked); `keys.sh` with the real store (Keychain on a Mac, systemd-creds on the robot, throwaway names) | `tests/unit/test_reachy_lib_keys.py`; `tests/integration/test_keys_store.py` (run on the Mac only so far; the Linux branch is untested until the robot is back, and the Windows `ctypes` calls and `.bat` files are untested until run on Windows) |
 | Hub settings (`.env`) | `tests/unit/test_main.py` |
 | Sleep and wake watcher | `tests/unit/test_sleep_tool.py`, `test_wake_watcher.py`, `tests/integration/test_wake_robot.py` |
 | Retired patch refusal/source transforms | `tests/unit/test_patch_retirement.py`, `test_voice_look_install.py`; helpers now under `archive/retired_patches/` |

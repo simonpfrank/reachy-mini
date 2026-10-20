@@ -66,11 +66,23 @@ Current settings:
 Seen once: `ModuleNotFoundError: reachy_mini.io.jsonrpc` starting the app in sim, though the module exists
 in `apps_venv`; cause not found, and it started fine later.
 
+## Windows (not yet tested)
+
+Written but never run on Windows: `scripts\keys.bat` (keys in Credential Manager) and `scripts\hub.bat` (runs the
+hub in the window; no background start/stop). Where the Reachy Mini Control app keeps its folders on Windows is not
+recorded. Private files (photos, scans) use `chmod`, which does nothing useful there, so they rely on the user
+profile's own permissions.
+
+Python 3.12 everywhere (`requires-python` in `pyproject.toml`): the key and hub scripts use the project `.venv`
+and stop with a message if it is missing.
+
 ## API keys
 
-Keys are stored encrypted with `systemd-creds --user`, never in Git or plain text. Manage them on the robot
-from the project folder, without sudo: `scripts/keys.sh add tavily` (paste at the hidden prompt), `check tavily`,
-`list`, `remove tavily`. Details and the accepted limit: [tools: API keys](tools.md#api-keys).
+Keys are stored encrypted, never in Git or plain text: `systemd-creds --user` on the robot, the login Keychain
+on the Mac (for the sim), Credential Manager on Windows. Manage them from the project folder, on any, without
+sudo: `scripts/keys.sh add tavily` (`scripts\keys.bat` on Windows; paste at the hidden prompt), `check tavily`,
+`remove tavily`, and `list` (robot only). `TAVILY_API_KEY` in `~/.env`
+also works and wins over the stored key. Details and the accepted limit: [tools: API keys](tools.md#api-keys).
 
 **Versions, 2026-10-16:** dashboard app 1.1.1 / SDK 1.12.0. `pyproject.toml` and `uv.lock` pin hotfix
 revision `66141f689e405ae404a5761186057dff183b4f45` (1.1.1); the development `.venv` is still 1.1.0 until synced.
