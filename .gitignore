@@ -1,4 +1,4 @@
-# Virtual environment (symlink to ~/venvs/reachy_mini_env)
+# Virtual environment (symlink to ~/.venvs/reachy_mini_env)
 .venv
 .venv/
 
@@ -28,3 +28,6 @@ agents.local.md
 
 # Robot backups (may contain personal memory)
 backups/
+
+# Hub runtime state on the Mac (log)
+.hub/
