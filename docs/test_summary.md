@@ -37,6 +37,8 @@ If either is down, those tests fail and say what to start.
 | Shared tool library: pose capture, smooth moves, private storage | `tests/unit/test_reachy_lib_motion.py`, `test_reachy_lib_storage.py` |
 | API keys: lookup order, store/delete/list per platform and the `keys.py` command (unit, commands and Windows calls mocked); `keys.sh` with the real store (Keychain on a Mac, systemd-creds on the robot, throwaway names) | `tests/unit/test_reachy_lib_keys.py`; `tests/integration/test_keys_store.py` (run on the Mac only so far; the Linux branch is untested until the robot is back, and the Windows `ctypes` calls and `.bat` files are untested until run on Windows) |
 | Hub settings (`.env`) | `tests/unit/test_main.py` |
+| Scan settings: `scan.json` loader and precedence, `crop` and its stop counts, `models` and `tiers` in the file (unit only) | `tests/unit/test_scan_config.py`, `test_room_scan_plan.py` |
+| Detection model table: defaults, validation, tiers, models folder and availability (unit only; no detection built yet) | `tests/unit/test_reachy_lib_detection.py`, `test_reachy_lib_storage.py` |
 | Reply allow-list: plain data only, no image data or private paths; a guard test fails if any tool's `__call__` lacks `@checked` (unit only; not yet seen refusing in the live app) | `tests/unit/test_reachy_lib_replies.py`, `test_every_tool_checks_its_reply.py` |
 | `scripts/hub.sh` start, status, restart, stop with real processes on a spare port (run on the Mac; the Linux branch is untested until the robot is back) | `tests/integration/test_hub_script.py` |
 | Sleep and wake watcher | `tests/unit/test_sleep_tool.py`, `test_wake_watcher.py`, `tests/integration/test_wake_robot.py` |

@@ -112,3 +112,32 @@ def test_less_overlap_needs_fewer_frames(scan):
 
 def test_every_pose_holds_the_configured_pitch(scan):
     assert {p.pitch_deg for p in planned(scan, REACHY_SCAN_PITCH_DEG=-5)} == {-5.0}
+
+
+def test_without_a_crop_the_whole_photo_is_used(scan):
+    assert scan.ScanSettings().crop == 1.0 and len(planned(scan)) == 7
+
+
+@pytest.mark.parametrize(("crop", "stops"), [(0.8, 8), (0.7, 9), (0.6, 10)])
+def test_a_tighter_crop_needs_more_stops_to_cover_the_same_sweep(scan, crop, stops):
+    poses = planned(scan, REACHY_SCAN_CROP=crop)
+    assert len(poses) == stops
+    assert (poses[0].body_yaw_deg, poses[0].head_yaw_deg) == (-125, -35)  # the sweep still runs limit to limit
+    assert (poses[-1].body_yaw_deg, poses[-1].head_yaw_deg) == (140, 35)
+
+
+def test_the_overlap_applies_to_the_trimmed_field_of_view(scan):
+    poses = planned(scan, REACHY_SCAN_CROP=0.7)
+    headings = [p.body_yaw_deg + p.head_yaw_deg for p in poses]
+    steps = [b - a for a, b in zip(headings, headings[1:], strict=False)]
+    assert max(steps) <= 87.0 * 0.7 * 0.75 + 1e-9
+
+
+@pytest.mark.parametrize("value", ["0", "-0.5", "1.01", "abc"])
+def test_a_bad_crop_is_refused_by_name(scan, value):
+    with pytest.raises(ValueError, match="REACHY_SCAN_CROP"):
+        scan.ScanSettings.from_env({"REACHY_SCAN_CROP": value})
+
+
+def test_crop_is_a_setting_scan_json_may_hold(scan):
+    assert "crop" in scan.SETTING_NAMES

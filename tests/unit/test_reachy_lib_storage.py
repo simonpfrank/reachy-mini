@@ -57,3 +57,10 @@ def test_no_tool_works_out_the_state_folder_for_itself():
     """One definition, in reachy_lib.storage: a tool that reads the setting itself is a copy to remove."""
     copies = [p.name for p in TOOLS.glob("*.py") if "REACHY_TOOLS_STATE_DIR" in p.read_text()]
     assert copies == []
+
+
+def test_the_models_folder_defaults_outside_the_repository_and_can_be_overridden(storage, monkeypatch, tmp_path):
+    monkeypatch.delenv("REACHY_TOOLS_MODELS_DIR", raising=False)
+    assert storage.models_dir() == Path("~/.local/share/reachy-tools/models").expanduser()
+    monkeypatch.setenv("REACHY_TOOLS_MODELS_DIR", str(tmp_path / "m"))
+    assert storage.models_dir() == tmp_path / "m"

@@ -19,6 +19,11 @@ def scan_dir() -> Path:
     return Path(os.environ.get("REACHY_TOOLS_SCAN_DIR", "~/.local/share/reachy-tools/scan")).expanduser()
 
 
+def models_dir() -> Path:
+    """Where detection model files live: outside the repository, because they are up to 100 MB each."""
+    return Path(os.environ.get("REACHY_TOOLS_MODELS_DIR", "~/.local/share/reachy-tools/models")).expanduser()
+
+
 def write_private(directory: Path, files: dict[str, bytes]) -> None:
     """Create ``directory`` (owner-only) and replace each named file in it, owner-only, via a temporary file.
 
