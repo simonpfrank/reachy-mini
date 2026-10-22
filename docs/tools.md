@@ -13,7 +13,7 @@ Paths and launch configuration: [setup](development_setup.md).
 | `news` | Optional `topic`: BBC section (top, world, uk, politics, business, technology, science, health, entertainment) or any subject via Tavily news search; numbered, saved for follow-up |
 | `web_search` | `query`, optional `recent` (day/week/month/year); Tavily; numbered results saved for follow-up |
 | `photo` | No arguments; takes one frame without moving the head and records the measured pose (no levelling); saves `photo.jpg` + `photo.json` (pose, time, resolution) owner-only in `~/.local/share/reachy-tools/camera/`, replacing the last. Nothing goes to the model |
-| `room_scan` | No arguments; starts a background scan and replies at once. One queued move through 7 stops (default settings, about 40 s) and back to the starting pose, a photo at each stop; saves `scan_NN.jpg` + `scan.json` (reason, settings, planned and measured poses, complete flag) owner-only in `~/.local/share/reachy-tools/scan/` (`REACHY_TOOLS_SCAN_DIR`), replacing the last scan. Not analysed yet. Settings `REACHY_SCAN_*`: `OVERLAP` 0.25, `HFOV_DEG` 87, `BODY_YAW_MIN_DEG`/`MAX_DEG` −125/140, `HEAD_YAW_MIN_DEG`/`MAX_DEG` −35/35, `PITCH_DEG` 0, `SETTLE_S` 0.5, `CROP` 1.0. Also read from `scan.json` (below). Defaults to be recalibrated on the robot |
+| `room_scan` | No arguments; starts a background scan and replies at once. One queued move through 7 stops (default settings, about 40 s) and back to the starting pose, a photo at each stop; saves `scan_NN.jpg` + `scan.json` (reason, settings, planned and measured poses, complete flag) owner-only in `~/.local/share/reachy-tools/scan/` (`REACHY_TOOLS_SCAN_DIR`), replacing the last scan. Not analysed yet. Settings `REACHY_SCAN_*`: `OVERLAP` 0.25, `HFOV_DEG` 87, `BODY_YAW_MIN_DEG`/`MAX_DEG` −125/140, `HEAD_YAW_MIN_DEG`/`MAX_DEG` −35/35, `PITCH_DEG` 0, `SETTLE_S` 0.5, `CROP` 1.0, `CONFIDENCE` 0.35, `NMS_IOU` 0.5, `ANALYSIS_THREADS` 1. Also read from `scan.json` (below). Each photo is analysed as it is taken (pass `now`, YOLOX-Nano) and again over all photos when the robot is back (pass `after`, YOLOX-S); results go in `analysis.json` beside the photos: per photo a label, score, box and tier, and per pass whether it ran or was skipped and why. A missing model file or engine skips a pass and never stops the scan. The Mac pass `remote` is recorded as not built. Defaults to be recalibrated on the robot |
 | `sleep` | No arguments; starts the wake watcher, then Pollen's sleep (pose, app stops, motors off); stays awake if the watcher cannot start. Replaces `go_to_sleep` |
 | `approve_site` | `site`; adds the exact refused site to `approved_sites.txt` only if the transcript shows the robot named it and the user said or typed yes; permanent |
 | `read_article` | `number` from the last search/news list, `link` from the last page read, or `url`; fetches the page directly, text via BeautifulSoup (max 8000 characters) plus its links in page order; local and private addresses refused with a reason |
@@ -51,8 +51,8 @@ None of these belong in Git.
 Order of precedence: code default, then `scan.json`, then an environment variable if set.
 
 `scan.json` keys (the `REACHY_SCAN_*` names without the prefix, lower case): `overlap`, `hfov_deg`,
-`body_yaw_min_deg`, `body_yaw_max_deg`, `head_yaw_min_deg`, `head_yaw_max_deg`, `pitch_deg`, `settle_s`, `crop`; and two
-tables, `models` and `tiers`. An unknown key, bad JSON or a bad value is refused with a message naming it.
+`body_yaw_min_deg`, `body_yaw_max_deg`, `head_yaw_min_deg`, `head_yaw_max_deg`, `pitch_deg`, `settle_s`, `crop`,
+`confidence`, `nms_iou`, `analysis_threads`; and two tables, `models` and `tiers`. An unknown key, bad JSON or a bad value is refused with a message naming it.
 `crop` is the central fraction of each photo's width kept (default 1, the whole photo); the overlap applies to the
 trimmed field, so crop 0.8 gives 8 stops, 0.7 gives 9, 0.6 gives 10 (instead of 7).
 
@@ -60,8 +60,9 @@ trimmed field, so crop 0.8 gives 8 stops, 0.7 gives 9, 0.6 gives 10 (instead of 
 `yolox_nano` (416), `yolox_s` (640), `yolox_m` (640) and `nanodet` (416). `tiers` says which model runs in `now`
 (during the scan), `after` (on the robot after it) and `remote` (on the Mac); `null` switches a pass off.
 Model files live in `REACHY_TOOLS_MODELS_DIR` (default `~/.local/share/reachy-tools/models`), and a file name may not
-contain a path, so a setting cannot point the scan at an arbitrary file. The detection passes that use these are not
-built yet.
+contain a path, so a setting cannot point the scan at an arbitrary file. A mistake in the `models` or `tiers` tables
+is recorded in `analysis.json` and does not stop the scan. Analysis needs ONNX Runtime and OpenCV in the app's
+environment (both are in the sim's; the robot's is not yet checked) and the model files in that folder.
 
 ### Tool replies are checked (built 2026-10-22)
 

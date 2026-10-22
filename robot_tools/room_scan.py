@@ -18,7 +18,7 @@ import logging
 import math
 import os
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,6 +29,8 @@ from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
 from reachy_lib import motion  # noqa: E402
+from reachy_lib.detection import PASSES, ModelSpec, availability, load_models, load_tiers  # noqa: E402
+from reachy_lib.detector import Detection, Detector, decode_jpeg, engine_available  # noqa: E402
 from reachy_lib.replies import checked  # noqa: E402
 from reachy_lib.storage import scan_dir, state_dir, write_private  # noqa: E402
 
@@ -58,6 +60,9 @@ SETTING_NAMES = (  # the keys scan.json may hold: the REACHY_SCAN_* names withou
     "pitch_deg",
     "settle_s",
     "crop",
+    "confidence",
+    "nms_iou",
+    "analysis_threads",
 )
 
 
@@ -114,6 +119,9 @@ class ScanSettings:
         crop: Central fraction of each photo's width used for analysis, above 0 up to 1 (1 is the whole photo). The
             overlap applies to this trimmed field, so a tighter crop means more stops. The field is taken as
             proportional to the width, which for a wide lens understates what is covered: the safe side.
+        confidence: Detections scoring this or less are dropped (above 0, below 1).
+        nms_iou: Boxes of one class overlapping more than this are merged into the strongest (above 0, below 1).
+        analysis_threads: CPU threads the detector may use; 1 keeps the robot's other work responsive.
     """
 
     overlap: float = 0.25
@@ -125,6 +133,9 @@ class ScanSettings:
     pitch_deg: float = 0.0
     settle_s: float = 0.5
     crop: float = 1.0
+    confidence: float = 0.35
+    nms_iou: float = 0.5
+    analysis_threads: int = 1
 
     @classmethod
     def load(cls, environ: Mapping[str, str]) -> "ScanSettings":
@@ -166,6 +177,14 @@ class ScanSettings:
         crop = _number(environ, "REACHY_SCAN_CROP", defaults.crop)
         if not 0 < crop <= 1:
             raise ValueError(f"REACHY_SCAN_CROP must be above 0 and at most 1, got {crop}")
+        fractions = {}
+        for name, default in (("CONFIDENCE", defaults.confidence), ("NMS_IOU", defaults.nms_iou)):
+            fractions[name] = _number(environ, f"REACHY_SCAN_{name}", default)
+            if not 0 < fractions[name] < 1:
+                raise ValueError(f"REACHY_SCAN_{name} must be above 0 and below 1, got {fractions[name]}")
+        threads = _number(environ, "REACHY_SCAN_ANALYSIS_THREADS", defaults.analysis_threads)
+        if threads < 1 or threads != int(threads):
+            raise ValueError(f"REACHY_SCAN_ANALYSIS_THREADS must be a whole number, 1 or more, got {threads}")
         settings = cls(
             overlap=overlap,
             hfov_deg=_number(environ, "REACHY_SCAN_HFOV_DEG", defaults.hfov_deg),
@@ -176,6 +195,9 @@ class ScanSettings:
             pitch_deg=_number(environ, "REACHY_SCAN_PITCH_DEG", defaults.pitch_deg),
             settle_s=settle,
             crop=crop,
+            confidence=fractions["CONFIDENCE"],
+            nms_iou=fractions["NMS_IOU"],
+            analysis_threads=int(threads),
         )
         ranges = (
             ("BODY", settings.body_min_deg, settings.body_max_deg),
@@ -333,6 +355,173 @@ def save_scan(
     return complete
 
 
+def load_detector(spec: ModelSpec, settings: ScanSettings) -> Detector:
+    """Open a model's file as a detector with this scan's cut-offs and thread count."""
+    return Detector.load(spec, threads=settings.analysis_threads, conf=settings.confidence, iou=settings.nms_iou)
+
+
+def _analyse_stop(detector: Detector, jpeg: bytes, crop: float, tier: str) -> list[dict[str, Any]]:
+    """Decode one photo, keep the central ``crop`` of its width, detect, and put the boxes back in photo pixels."""
+    image = decode_jpeg(jpeg)
+    trim = int(image.shape[1] * (1 - crop) / 2)
+    found: list[Detection] = detector.detect(image[:, trim : image.shape[1] - trim])
+    return [
+        {
+            "label": d.label,
+            "score": round(d.score, 3),
+            "box": [round(d.box[0] + trim), round(d.box[1]), round(d.box[2] + trim), round(d.box[3])],
+            "tier": tier,
+        }
+        for d in found
+    ]
+
+
+def _summary(found: list[dict[str, Any]]) -> str:
+    counts: dict[str, int] = {}
+    for item in found:
+        counts[item["label"]] = counts.get(item["label"], 0) + 1
+    return ", ".join(f"{label} {count}" for label, count in counts.items()) or "nothing found"
+
+
+class Analysis:
+    """The detection passes of one scan, and the record of what each did (``analysis.json``).
+
+    Pass ``now`` runs on each photo as it is taken, so knowledge grows during the scan. Pass ``after`` runs over
+    every photo once the robot is back. Pass ``remote`` (the Mac) is recorded as not built yet. A pass that cannot
+    run is recorded with the reason and never stops the scan. Results are anonymous: a label, a score and a box.
+    """
+
+    def __init__(self, settings: ScanSettings, total: int) -> None:
+        """Read the model and tier tables from scan.json; a mistake there is recorded, not fatal."""
+        self.settings, self.total = settings, total
+        self.passes: dict[str, dict[str, Any]] = {}
+        self.found: dict[str, dict[int, list[dict[str, Any]]]] = {"now": {}, "after": {}}
+        self._used: set[str] = set()
+        self._tasks: dict[int, asyncio.Task[list[dict[str, Any]]]] = {}
+        self._detector: Detector | None = None
+        self._error = ""
+        try:
+            models_table, tiers_table = read_tables()
+            self.models = load_models(models_table)
+            self.tiers = load_tiers(self.models, tiers_table)
+        except ValueError as error:
+            self._error = str(error)
+            self.models = load_models()
+            self.tiers = load_tiers(self.models)
+
+    async def start(self) -> None:
+        """Open the ``now`` detector before the robot moves, so loading never delays a photo."""
+        self._detector = await self._open("now")
+
+    def submit(self, stop: Stop) -> None:
+        """Start analysing a photo the moment it is taken, while the robot moves on to the next stop."""
+        if self._detector is not None and stop.jpeg is not None:
+            self._tasks[stop.index] = asyncio.create_task(self._analyse(self._detector, stop, "now"))
+
+    async def finish_now(self, elapsed: Callable[[], float]) -> None:
+        """Wait for the ``now`` analyses still running and record how that pass went."""
+        if self._detector is None:
+            return
+        results = await asyncio.gather(*self._tasks.values(), return_exceptions=True)
+        failed = []
+        for index, result in zip(self._tasks, results, strict=True):
+            if isinstance(result, BaseException):
+                failed.append(result)
+            else:
+                self.found["now"][index] = result
+        self._record("now", failed, len(results), elapsed)
+
+    async def run_after(self, stops: list[Stop], elapsed: Callable[[], float]) -> None:
+        """Run the ``after`` model over every photo, one at a time; also record the (unbuilt) ``remote`` pass."""
+        detector = await self._open("after")
+        await self._open("remote")
+        if detector is None:
+            return
+        failed: list[BaseException] = []
+        for stop in stops:
+            if stop.jpeg is None:
+                continue
+            try:
+                self.found["after"][stop.index] = await self._analyse(detector, stop, "after")
+            except Exception as error:
+                failed.append(error)
+        self._record("after", failed, len(stops), elapsed)
+
+    def cancel(self) -> None:
+        """Stop any analysis still running (the scan is being abandoned)."""
+        for task in self._tasks.values():
+            task.cancel()
+
+    def save(self, stops: list[Stop], reason: str, started: str) -> None:
+        """Write ``analysis.json`` beside the photos, replacing the last one: it must never describe an older scan."""
+        for name in PASSES:
+            self.passes.setdefault(
+                name,
+                {"model": self.tiers[name], "status": "skipped", "reason": "the scan ended first", "seconds": None},
+            )
+        per_stop = [
+            {"index": s.index, "passes": {t: self.found[t][s.index] for t in self.found if s.index in self.found[t]}}
+            for s in stops
+        ]
+        data = {
+            "scan_started": started,
+            "reason": reason,
+            "crop": self.settings.crop,
+            "passes": self.passes,
+            "stops": per_stop,
+        }
+        write_private(scan_dir(), {"analysis.json": json.dumps(data, indent=2).encode()})
+
+    async def _open(self, name: str) -> Detector | None:
+        """The detector for one pass, or None with the reason recorded: switched off, not built, or not available."""
+        model = self.tiers[name]
+        record: dict[str, Any] = {"model": model, "status": "skipped", "reason": "", "seconds": None}
+        self.passes[name] = record
+        record["reason"] = self._skip_reason(name, model)
+        if record["reason"]:
+            return None
+        try:
+            detector = await asyncio.to_thread(load_detector, self.models[str(model)], self.settings)
+        except Exception as error:
+            record.update(status="failed", reason=f"could not load {model}: {type(error).__name__}")
+            return None
+        self._used.add(str(model))
+        record.update(status="ready", reason="ok")
+        return detector
+
+    def _skip_reason(self, name: str, model: str | None) -> str:
+        if self._error:
+            return f"scan.json: {self._error}"
+        if model is None:
+            return "switched off"
+        if name == "remote":
+            return "remote analysis is not built yet"
+        if model in self._used:
+            return f"same model as an earlier pass ({model})"
+        ready, reason = engine_available()
+        if not ready:
+            return reason
+        ready, reason = availability(self.models[model])
+        return "" if ready else reason
+
+    async def _analyse(self, detector: Detector, stop: Stop, tier: str) -> list[dict[str, Any]]:
+        found = await asyncio.to_thread(_analyse_stop, detector, stop.jpeg or b"", self.settings.crop, tier)
+        LOG.info("room scan analysis (%s): photo %d of %d: %s", tier, stop.index + 1, self.total, _summary(found))
+        return found
+
+    def _record(self, name: str, failed: list[BaseException], count: int, elapsed: Callable[[], float]) -> None:
+        record = self.passes[name]
+        record["seconds"] = round(elapsed(), 1)
+        if failed:
+            record.update(status="failed", reason=f"{type(failed[0]).__name__} on {len(failed)} of {count} photos")
+        else:
+            record.update(status="ran", reason="ok")
+        LOG.info(
+            "room scan analysis: pass %s (%s) %s on %d photos, %.1f s into the scan",
+            name, record["model"], record["status"], count, record["seconds"],
+        )  # fmt: skip
+
+
 async def run_scan(deps: ToolDependencies, settings: ScanSettings, reason: str) -> dict[str, Any]:
     """Run one scan to the end: queue the move, photograph each stop, save. The move brings the robot back itself.
 
@@ -355,6 +544,8 @@ async def run_scan(deps: ToolDependencies, settings: ScanSettings, reason: str) 
     resolution = list(reachy.media.camera.resolution)
     stops: list[Stop] = []
     clock = asyncio.get_running_loop().time
+    analysis = Analysis(settings, len(poses))
+    await analysis.start()  # the pass-1 model is opened now, so loading never delays a photo
     reachy.disable_wobbling()  # speech wobble would move the head during a photo
     began = clock()
     deps.movement_manager.queue_move(move)
@@ -362,10 +553,15 @@ async def run_scan(deps: ToolDependencies, settings: ScanSettings, reason: str) 
         for index, (pose, moment) in enumerate(zip(poses, photo_times, strict=True)):
             await asyncio.sleep(max(0.0, began + moment - clock()))
             stops.append(await _capture(reachy, index, pose))
+            analysis.submit(stops[-1])  # analysed while the robot moves on
         await asyncio.sleep(max(0.0, began + move.duration - clock()))  # the move itself brings the robot back
+        await analysis.finish_now(lambda: clock() - began)
+        await analysis.run_after(stops, lambda: clock() - began)
     finally:
+        analysis.cancel()
         reachy.enable_wobbling()
         complete = await asyncio.to_thread(save_scan, stops, len(poses), settings, reason, started, resolution)
+        await asyncio.to_thread(analysis.save, stops, reason, started)
     LOG.info("room scan finished: %d photos, complete=%s, reason=%s", len(stops), complete, reason)
     return {"stops": len(stops), "complete": complete, "folder": str(scan_dir())}
 
