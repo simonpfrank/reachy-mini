@@ -159,6 +159,10 @@ Existing notes, moved here; the requirement is still to be agreed:
     owner-only folder outside the repo, and a vision LLM address that must be loopback or on the home network.
   - Known limit: voice already reaches a cloud model through the conversation app's hosted mode, which tool-level
     controls do not cover. A public, anonymised room scan is fine; per-person privacy is worked out later.
+- **Built 2026-10-22 (Mac, unit tested, not yet run on the robot):** passes `now` and `after`, `analysis.json`,
+  the world picture (`world.json`) with freshness, coverage and merging, and the read-only `room_view` tool.
+- **Deferred 2026-10-22:** the Mac pass (YOLOX-M, then the local vision LLM with its private-address check) and a
+  re-analysis command wait until the robot is back online. Next is bringing the robot up and running real scans.
 - **Images:** Claude opens the user's photos only when the user enables it in the permission prompt.
 
 Simon's direction (2026-10-18), later layers still to be agreed as requirements:
