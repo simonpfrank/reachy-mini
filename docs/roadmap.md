@@ -126,6 +126,41 @@ Existing notes, moved here; the requirement is still to be agreed:
 - Until the robot is repaired, testing is on the Mac: plan maths in unit tests; the sim does not move the head
   and returns the same photo every time.
 
+### Analysis and world model (agreed 2026-10-22)
+
+- **Detection runtime and models:** ONNX Runtime (in the project `.venv` and the app environment). Models are a
+  table (file, input size, family, padding, classes) chosen by settings, so a new model is data. The model files fix
+  the input size (416 or 640); bigger input needs a re-export (untried). Tiling set aside: merging pieces is hard.
+- **Tiers (measured on one photo, Mac; Pi speeds are estimates):** pass 1 during the scan, on the robot: YOLOX-Nano
+  (fast, weak). Pass 2 after the scan, on the robot: YOLOX-S (clearly better; about 2 s a photo on the Pi, guess).
+  Pass 3 on the Mac when available: YOLOX-M (best; about 5 s on the Pi, too slow there). Optional pass 4: a local
+  vision LLM, Mac only, each photo separately (never stitched) with its direction, returning a structured object list.
+  NanoDet dropped for now. Final model choice after robot tests.
+- **Pipelined:** each photo is analysed as the next is taken. The scan is about 40 s; analysis keeps up if it takes
+  under about 4 s a photo, so the scan is movement-bound for Nano and S, analysis-bound for M and larger.
+- **Crop:** `REACHY_SCAN_CROP`, the central fraction of each photo kept; default 1.0 until the real camera's edge
+  distortion is measured. Overlap is applied to the trimmed field, so the stop count rises (0.8: 8 stops, 0.7: 9);
+  nothing is missed, and extra stops cost about 1 s each.
+- **World model:** freshness (everything stale when a scan starts, fresh when seen again), coverage (directions
+  analysed of the total) and tiered observations (the tier is recorded; a higher tier replaces a lower one). One small
+  file, updated after every photo and every pass. Duplicates across overlapping photos are merged by angle ranges
+  from the measured pose and the camera calibration; tolerance untuned until the robot is back.
+- **Fallback:** the minimum a scan delivers is photos with poses. Every pass has an `available()` check; each scan
+  records which passes ran, which were skipped and why; remote passes have timeouts and never block the robot.
+- **Customisable:** every variable above is a setting (environment or `.env`) read at each scan; settings and the
+  models used are recorded with each scan, and the photos stay until the next scan, so a re-analysis can run other
+  settings or models offline. Model files live outside the repo (`REACHY_TOOLS_MODELS_DIR`).
+- **Privacy rules (the permission line is where a name is attached to a face or voice):**
+  - Raw sensor data (photos, audio) stays local: never in a tool reply, never to an LLM or cloud.
+  - Derived anonymous facts (object classes, counts, directions) may be told to the LLM.
+  - Identifying data (face or voice prints, names attached to them) needs per-person consent, stays local, and goes
+    to no LLM or cloud. That workflow comes later; until then there is no name or identity field anywhere.
+  - Enforced in code, with tests: an allow-list on every tool reply, analysis code with no network, raw media in one
+    owner-only folder outside the repo, and a vision LLM address that must be loopback or on the home network.
+  - Known limit: voice already reaches a cloud model through the conversation app's hosted mode, which tool-level
+    controls do not cover. A public, anonymised room scan is fine; per-person privacy is worked out later.
+- **Images:** Claude opens the user's photos only when the user enables it in the permission prompt.
+
 Simon's direction (2026-10-18), later layers still to be agreed as requirements:
 
 - **Build in layers, recording before analysis:**
