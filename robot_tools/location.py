@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.replies import checked  # noqa: E402
 from reachy_lib.storage import state_dir  # noqa: E402
 
 DEFAULT_LOCATION: dict[str, Any] = {
@@ -61,6 +62,7 @@ class Location(Tool):  # type: ignore[misc]
     )
     parameters_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
+    @checked
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
         """Return the configured location without making a network request."""
         return location_payload()

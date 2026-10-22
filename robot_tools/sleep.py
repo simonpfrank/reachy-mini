@@ -10,10 +10,14 @@ import asyncio
 import logging
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.replies import checked  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,6 +58,7 @@ class Sleep(Tool):  # type: ignore[misc]
     needs_response = False
     parameters_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
+    @checked
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
         """Start the watcher, then Pollen's sleep; stay awake if the watcher fails."""
         if deps.go_to_sleep is None:

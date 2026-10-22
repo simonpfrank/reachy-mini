@@ -38,6 +38,26 @@ may read, one per line (seeded with bbc.co.uk, bbc.com, theguardian.com, reuters
 metoffice.gov.uk); delete a line to remove a site.
 None of these belong in Git.
 
+### Where scan and analysis configuration lives (agreed 2026-10-22; being built)
+
+| What | Where |
+|---|---|
+| Rules: the tool-reply allow-list, the private-address check for a vision LLM, no network in analysis code | In code (`robot_tools/reachy_lib/`), under tests. Not a settings file, so it cannot be changed by accident |
+| Defaults (`ScanSettings`, the default model table) | In code, so a scan works with nothing configured |
+| Values to tune (overlap, crop, cut-offs, which model runs in which tier, threads) and the model table | `~/.config/reachy_tools/scan.json`, read fresh at every scan (no restart); `REACHY_SCAN_*` environment variables override it |
+| Model files | `REACHY_TOOLS_MODELS_DIR`, outside the repo |
+| What a scan actually used | That scan's own `scan.json` and `analysis.json` |
+
+Order of precedence: code default, then `scan.json`, then an environment variable if set.
+
+### Tool replies are checked (built 2026-10-22)
+
+Every tool's `__call__` carries `@checked` (`reachy_lib/replies.py`), so its reply is vetted before the LLM sees it:
+plain data only (text, numbers, true/false, nothing, lists and dictionaries with text keys); text that looks like
+encoded image data or names a private folder (photos, scans, keys) is refused; so is a key containing `b64`, and
+any reply over 100,000 characters. A refusal names the rule, never the data. A new tool without `@checked` fails
+`tests/unit/test_every_tool_checks_its_reply.py`. If a legitimate reply is refused, fix the tool, not the check.
+
 ## API keys
 
 Tools get a key with `reachy_lib.keys.get_key(name)`, the same call on the robot and the Mac. It tries, in order:

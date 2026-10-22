@@ -18,6 +18,7 @@ from typing import Any
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.replies import checked  # noqa: E402
 from reachy_lib.storage import state_dir  # noqa: E402
 
 LOG = logging.getLogger(__name__)
@@ -270,6 +271,7 @@ class Weather(Tool):  # type: ignore[misc]
         "required": [],
     }
 
+    @checked
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
         """Fetch the forecast without blocking the conversation loop."""
         try:

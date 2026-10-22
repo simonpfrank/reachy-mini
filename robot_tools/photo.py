@@ -20,6 +20,7 @@ from reachy_mini.utils.rotation import Rotation  # type: ignore[import-untyped]
 from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
+from reachy_lib.replies import checked  # noqa: E402
 from reachy_lib.storage import camera_dir, write_private  # noqa: E402
 
 LOG = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ class Photo(Tool):  # type: ignore[misc]
     )
     parameters_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
+    @checked
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
         """Take and save the photo, logging failures."""
         try:

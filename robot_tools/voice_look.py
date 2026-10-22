@@ -27,6 +27,7 @@ from reachy_mini_conversation_app.tools.core_tools import Tool, ToolDependencies
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # the app loads tools by path; see reachy_lib
 from reachy_lib.motion import PoseMove, PoseSnapshot, angular_delta, from_pose, travel_seconds  # noqa: E402
+from reachy_lib.replies import checked  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -267,6 +268,7 @@ class VoiceLook(Tool):  # type: ignore[misc]
         "required": [],
     }
 
+    @checked
     async def __call__(self, deps: ToolDependencies, **kwargs: Any) -> dict[str, Any]:
         """Start or stop the worker; never wait for it to finish."""
         enabled = kwargs.get("enabled", True)
