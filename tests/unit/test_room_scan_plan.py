@@ -140,4 +140,6 @@ def test_a_bad_crop_is_refused_by_name(scan, value):
 
 
 def test_crop_is_a_setting_scan_json_may_hold(scan):
-    assert "crop" in scan.SETTING_NAMES
+    from reachy_lib.scan_settings import SETTING_NAMES  # importable: loading the scan tool put its folder on the path
+
+    assert "crop" in SETTING_NAMES

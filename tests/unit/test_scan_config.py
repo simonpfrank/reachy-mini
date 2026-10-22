@@ -89,3 +89,33 @@ def test_a_table_that_is_not_an_object_is_refused_by_name(scan):
     scan.file.write_text(json.dumps({"models": [1, 2]}))
     with pytest.raises(ValueError, match="models"):
         scan.module.read_tables()
+
+
+def test_the_world_model_settings_have_defaults_and_can_be_set(scan):
+    s = scan.module.ScanSettings.load({})
+    assert (s.stale_after_s, s.merge_tolerance_deg, s.merge_overlap) == (900.0, 3.0, 0.5)
+    s = scan.module.ScanSettings.load(
+        {"REACHY_SCAN_STALE_AFTER_S": "60", "REACHY_SCAN_MERGE_TOLERANCE_DEG": "5", "REACHY_SCAN_MERGE_OVERLAP": "0.3"}
+    )
+    assert (s.stale_after_s, s.merge_tolerance_deg, s.merge_overlap) == (60.0, 5.0, 0.3)
+    from reachy_lib.scan_settings import SETTING_NAMES  # importable: loading the scan tool put its folder on the path
+
+    assert {"stale_after_s", "merge_tolerance_deg", "merge_overlap"} <= set(SETTING_NAMES)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("REACHY_SCAN_STALE_AFTER_S", "0"),
+        ("REACHY_SCAN_MERGE_TOLERANCE_DEG", "-1"),
+        ("REACHY_SCAN_MERGE_OVERLAP", "0"),
+        ("REACHY_SCAN_MERGE_OVERLAP", "1.2"),
+        ("REACHY_SCAN_CONFIDENCE", "1"),
+        ("REACHY_SCAN_NMS_IOU", "0"),
+        ("REACHY_SCAN_ANALYSIS_THREADS", "0"),
+        ("REACHY_SCAN_ANALYSIS_THREADS", "1.5"),
+    ],
+)
+def test_a_bad_setting_is_refused_and_named(scan, name, value):
+    with pytest.raises(ValueError, match=name):
+        scan.module.ScanSettings.load({name: value})

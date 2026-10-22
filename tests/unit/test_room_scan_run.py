@@ -96,7 +96,7 @@ def test_one_move_is_queued_with_the_wobble_off_around_every_photo(robot):
 def test_photos_and_a_manifest_are_saved_with_planned_and_measured_poses(robot):
     result = scan(robot)
     assert result["complete"] is True
-    names = ["analysis.json", "scan.json"] + [f"scan_{i:02}.jpg" for i in range(7)]
+    names = ["analysis.json", "scan.json"] + [f"scan_{i:02}.jpg" for i in range(7)] + ["world.json"]
     assert sorted(p.name for p in robot.dir.iterdir()) == names
     assert (robot.dir / "scan_03.jpg").read_bytes() == b"JPEG3"
     manifest = json.loads((robot.dir / "scan.json").read_text())
@@ -159,7 +159,7 @@ def test_the_tool_replies_at_once_and_refuses_a_second_scan_while_one_runs(robot
         return first, second
 
     first, second = asyncio.run(scenario())
-    assert first["started"] is True and "cannot see" in first["note"]
+    assert first["started"] is True and "cannot see" in first["note"] and "room_view" in first["note"]
     assert "already" in second["error"]
 
 
@@ -172,7 +172,7 @@ def test_the_tool_refuses_while_the_robot_is_moving(robot):
 def test_the_tool_describes_itself_without_fixed_phrases(robot):
     tool = robot.module.RoomScan
     assert tool.name == "room_scan" and tool.parameters_schema["required"] == []
-    assert "cannot see" in tool.description
+    assert "cannot see" in tool.description and "room_view" in tool.description
 
 
 # --- analysis: pass "now" while scanning, pass "after" when the scan is done, always recorded in analysis.json ---
@@ -307,3 +307,89 @@ def test_the_detector_is_loaded_with_the_scan_settings(analysed):
     scan(analysed, REACHY_SCAN_CONFIDENCE=0.5, REACHY_SCAN_NMS_IOU=0.4, REACHY_SCAN_ANALYSIS_THREADS=2)
     spec_name, settings = analysed.loads[0]
     assert (spec_name, settings.confidence, settings.nms_iou, settings.analysis_threads) == ("yolox_nano", 0.5, 0.4, 2)
+
+
+# --- the world picture (world.json): written as results arrive, the old one kept as stale, never stops a scan ---
+
+import copy  # noqa: E402
+
+OLD_TV = {
+    "label": "tv", "bearing_deg": 10.0, "left_deg": 15.0, "right_deg": 5.0, "vertical_deg": 0.0,
+    "best_score": 0.9, "tiers": ["now"], "photos": [0], "confirmed": True,
+}  # fmt: skip
+
+
+def previous_picture(robot):
+    robot.dir.mkdir(parents=True, exist_ok=True)
+    picture = {
+        "scan_started": "2026-10-22T10:00:00+00:00", "updated": "2026-10-22T10:01:00+00:00", "status": "complete",
+        "coverage": {"photos_taken": 7, "photos_total": 7, "analysed": {"now": 7}},
+        "objects": [OLD_TV], "stale_objects": [],
+    }  # fmt: skip
+    (robot.dir / "world.json").write_text(json.dumps(picture))
+
+
+def recorded(robot):
+    snapshots, real = [], robot.module.write_world
+
+    def record(world):
+        snapshots.append(copy.deepcopy(world))
+        real(world)
+
+    robot.monkeypatch.setattr(robot.module, "write_world", record)
+    return snapshots
+
+
+def test_the_picture_is_written_as_results_arrive_and_ends_complete(analysed):
+    snapshots = recorded(analysed)
+    scan(analysed)
+    assert snapshots[0]["status"] == "scanning" and snapshots[0]["coverage"]["photos_taken"] == 0
+    counts = [s["coverage"]["analysed"].get("now", 0) for s in snapshots]
+    assert counts == sorted(counts) and counts[-1] == 7  # knowledge only grows
+    final = json.loads((analysed.dir / "world.json").read_text())
+    assert final["status"] == "complete" and final["coverage"]["photos_taken"] == 7
+    assert final["coverage"]["analysed"] == {"now": 7, "after": 7}
+    # the fake robot never moves, so every photo sees the person in the same direction: one object, in all seven
+    [person] = final["objects"]
+    assert person["photos"] == list(range(7)) and person["tiers"] == ["now", "after"] and person["confirmed"] is True
+
+
+def test_the_previous_picture_is_stale_during_the_scan_and_gone_when_it_completes(analysed):
+    previous_picture(analysed)
+    snapshots = recorded(analysed)
+    scan(analysed)
+    assert all([o["label"] for o in s["stale_objects"]] == ["tv"] for s in snapshots[:-1])
+    assert snapshots[0]["stale_objects"][0]["stale"] is True
+    assert json.loads((analysed.dir / "world.json").read_text())["stale_objects"] == []
+
+
+def test_an_interrupted_scan_ends_partial_and_the_old_picture_stays_stale(analysed):
+    previous_picture(analysed)
+    analysed.state.explode_on = 3
+    with pytest.raises(OSError, match="camera gone"):
+        scan(analysed)
+    final = json.loads((analysed.dir / "world.json").read_text())
+    assert final["status"] == "partial" and [o["label"] for o in final["stale_objects"]] == ["tv"]
+
+
+def test_a_picture_that_cannot_be_saved_never_stops_the_scan(analysed):
+    def broken(world):
+        raise OSError("disk full")
+
+    analysed.monkeypatch.setattr(analysed.module, "write_world", broken)
+    result = scan(analysed)
+    assert result["complete"] is True and (analysed.dir / "scan_06.jpg").exists()
+
+
+def test_a_damaged_previous_picture_is_ignored_and_replaced(analysed):
+    analysed.dir.mkdir(parents=True)
+    (analysed.dir / "world.json").write_text("{broken")
+    result = scan(analysed)
+    final = json.loads((analysed.dir / "world.json").read_text())
+    assert result["complete"] is True and final["status"] == "complete" and final["stale_objects"] == []
+
+
+def test_the_world_settings_reach_the_picture(analysed):
+    scan(analysed, REACHY_SCAN_MERGE_TOLERANCE_DEG=0, REACHY_SCAN_MERGE_OVERLAP=0.9)  # nothing is forced together
+    final = json.loads((analysed.dir / "world.json").read_text())
+    assert final["status"] == "complete"

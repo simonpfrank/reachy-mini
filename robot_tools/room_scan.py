@@ -18,7 +18,7 @@ import logging
 import math
 import os
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -32,184 +32,12 @@ from reachy_lib import motion  # noqa: E402
 from reachy_lib.detection import PASSES, ModelSpec, availability, load_models, load_tiers  # noqa: E402
 from reachy_lib.detector import Detection, Detector, decode_jpeg, engine_available  # noqa: E402
 from reachy_lib.replies import checked  # noqa: E402
-from reachy_lib.storage import scan_dir, state_dir, write_private  # noqa: E402
+from reachy_lib.scan_settings import ScanSettings, read_tables  # noqa: E402
+from reachy_lib.storage import scan_dir, write_private  # noqa: E402
+from reachy_lib.world import build_world, read_world, write_world  # noqa: E402
 
 LOG = logging.getLogger(__name__)
 TASK_KEY = "_room_scan_task"  # kept on the movement manager so a tool reload still sees a running scan
-
-
-def _number(environ: Mapping[str, str], name: str, default: float) -> float:
-    """A float setting; a value that is not a number is refused, naming the setting."""
-    raw = environ.get(name)
-    if raw is None:
-        return default
-    try:
-        return float(raw)
-    except ValueError as error:
-        raise ValueError(f"{name} must be a number, got {raw!r}") from error
-
-
-SETTINGS_FILE = "scan.json"
-SETTING_NAMES = (  # the keys scan.json may hold: the REACHY_SCAN_* names without the prefix, lower case
-    "overlap",
-    "hfov_deg",
-    "body_yaw_min_deg",
-    "body_yaw_max_deg",
-    "head_yaw_min_deg",
-    "head_yaw_max_deg",
-    "pitch_deg",
-    "settle_s",
-    "crop",
-    "confidence",
-    "nms_iou",
-    "analysis_threads",
-)
-
-
-TABLE_NAMES = ("models", "tiers")  # the two entries that hold tables, not single values; see reachy_lib.detection
-
-
-def _read_file() -> dict[str, Any]:
-    """scan.json from the state folder, read fresh each time: empty if there is no file, refused if it is wrong."""
-    path = state_dir() / SETTINGS_FILE
-    if not path.exists():
-        return {}
-    try:
-        values = json.loads(path.read_text())
-    except (OSError, ValueError) as error:
-        raise ValueError(f"{path} is not valid JSON ({error})") from error
-    if not isinstance(values, dict):
-        raise ValueError(f"{path} must hold a JSON object of settings")
-    unknown = sorted(set(values) - set(SETTING_NAMES) - set(TABLE_NAMES))
-    if unknown:
-        raise ValueError(f"{path} has settings the scan does not have: {', '.join(unknown)}")
-    return values
-
-
-def _file_settings() -> dict[str, str]:
-    """The single-value settings in scan.json, as the text the environment would give."""
-    return {f"REACHY_SCAN_{name.upper()}": str(value) for name, value in _read_file().items() if name in SETTING_NAMES}
-
-
-def read_tables() -> tuple[dict[str, Any], dict[str, Any]]:
-    """The ``models`` and ``tiers`` entries of scan.json (empty when absent), to pass to ``reachy_lib.detection``."""
-    values = _read_file()
-    tables = []
-    for name in TABLE_NAMES:
-        table = values.get(name, {})
-        if not isinstance(table, dict):
-            raise ValueError(f"{SETTINGS_FILE}: {name!r} must be a JSON object")
-        tables.append(table)
-    return tables[0], tables[1]
-
-
-@dataclass(frozen=True)
-class ScanSettings:
-    """What the scan needs to know about the robot, with the agreed defaults.
-
-    Attributes:
-        overlap: Fraction of each frame shared with the next, from 0 up to but not including 1.
-        hfov_deg: Camera horizontal field of view.
-        body_min_deg: Body yaw limit on the right (negative; SDK sign, positive is left).
-        body_max_deg: Body yaw limit on the left. The limits need not be equal.
-        head_min_deg: Head yaw limit relative to the body, right (negative).
-        head_max_deg: Head yaw limit relative to the body, left.
-        pitch_deg: Head pitch for the whole row.
-        settle_s: Seconds the robot is given to stop moving before a photo (it holds twice as long at each stop).
-        crop: Central fraction of each photo's width used for analysis, above 0 up to 1 (1 is the whole photo). The
-            overlap applies to this trimmed field, so a tighter crop means more stops. The field is taken as
-            proportional to the width, which for a wide lens understates what is covered: the safe side.
-        confidence: Detections scoring this or less are dropped (above 0, below 1).
-        nms_iou: Boxes of one class overlapping more than this are merged into the strongest (above 0, below 1).
-        analysis_threads: CPU threads the detector may use; 1 keeps the robot's other work responsive.
-    """
-
-    overlap: float = 0.25
-    hfov_deg: float = 87.0
-    body_min_deg: float = -125.0  # measured cable limits with a margin, as in voice_look; recalibrate on the robot
-    body_max_deg: float = 140.0
-    head_min_deg: float = -35.0  # voice_look's head reach; the SDK allows 65
-    head_max_deg: float = 35.0
-    pitch_deg: float = 0.0
-    settle_s: float = 0.5
-    crop: float = 1.0
-    confidence: float = 0.35
-    nms_iou: float = 0.5
-    analysis_threads: int = 1
-
-    @classmethod
-    def load(cls, environ: Mapping[str, str]) -> "ScanSettings":
-        """The settings for this scan: code defaults, then ``scan.json`` in the state folder, then ``environ``.
-
-        Args:
-            environ: Environment-like mapping, normally ``os.environ``; its ``REACHY_SCAN_*`` values win.
-
-        Returns:
-            The settings.
-
-        Raises:
-            ValueError: ``scan.json`` is not a JSON object, names a setting the scan does not have, or any value
-                (from the file or the environment) is invalid.
-        """
-        return cls.from_env({**_file_settings(), **environ})
-
-    @classmethod
-    def from_env(cls, environ: Mapping[str, str]) -> "ScanSettings":
-        """Read ``REACHY_SCAN_*`` settings from ``environ``.
-
-        Args:
-            environ: Environment-like mapping, normally ``os.environ``.
-
-        Returns:
-            The settings, with defaults for anything not set.
-
-        Raises:
-            ValueError: A value is not a number, the overlap is outside 0 <= overlap < 1, the settle time is
-                negative, or a yaw range does not include zero (the plan relies on straight ahead being reachable).
-        """
-        defaults = cls()
-        overlap = _number(environ, "REACHY_SCAN_OVERLAP", defaults.overlap)
-        if not 0 <= overlap < 1:
-            raise ValueError(f"REACHY_SCAN_OVERLAP must be from 0 up to but not including 1, got {overlap}")
-        settle = _number(environ, "REACHY_SCAN_SETTLE_S", defaults.settle_s)
-        if settle < 0:
-            raise ValueError(f"REACHY_SCAN_SETTLE_S must not be negative, got {settle}")
-        crop = _number(environ, "REACHY_SCAN_CROP", defaults.crop)
-        if not 0 < crop <= 1:
-            raise ValueError(f"REACHY_SCAN_CROP must be above 0 and at most 1, got {crop}")
-        fractions = {}
-        for name, default in (("CONFIDENCE", defaults.confidence), ("NMS_IOU", defaults.nms_iou)):
-            fractions[name] = _number(environ, f"REACHY_SCAN_{name}", default)
-            if not 0 < fractions[name] < 1:
-                raise ValueError(f"REACHY_SCAN_{name} must be above 0 and below 1, got {fractions[name]}")
-        threads = _number(environ, "REACHY_SCAN_ANALYSIS_THREADS", defaults.analysis_threads)
-        if threads < 1 or threads != int(threads):
-            raise ValueError(f"REACHY_SCAN_ANALYSIS_THREADS must be a whole number, 1 or more, got {threads}")
-        settings = cls(
-            overlap=overlap,
-            hfov_deg=_number(environ, "REACHY_SCAN_HFOV_DEG", defaults.hfov_deg),
-            body_min_deg=_number(environ, "REACHY_SCAN_BODY_YAW_MIN_DEG", defaults.body_min_deg),
-            body_max_deg=_number(environ, "REACHY_SCAN_BODY_YAW_MAX_DEG", defaults.body_max_deg),
-            head_min_deg=_number(environ, "REACHY_SCAN_HEAD_YAW_MIN_DEG", defaults.head_min_deg),
-            head_max_deg=_number(environ, "REACHY_SCAN_HEAD_YAW_MAX_DEG", defaults.head_max_deg),
-            pitch_deg=_number(environ, "REACHY_SCAN_PITCH_DEG", defaults.pitch_deg),
-            settle_s=settle,
-            crop=crop,
-            confidence=fractions["CONFIDENCE"],
-            nms_iou=fractions["NMS_IOU"],
-            analysis_threads=int(threads),
-        )
-        ranges = (
-            ("BODY", settings.body_min_deg, settings.body_max_deg),
-            ("HEAD", settings.head_min_deg, settings.head_max_deg),
-        )
-        for part, low, high in ranges:
-            if not low <= 0 <= high:
-                raise ValueError(
-                    f"REACHY_SCAN_{part}_YAW_MIN_DEG and REACHY_SCAN_{part}_YAW_MAX_DEG must bracket zero, "
-                    f"got {low} to {high}"
-                )
-        return settings
 
 
 @dataclass(frozen=True)
@@ -400,6 +228,7 @@ class Analysis:
         self._tasks: dict[int, asyncio.Task[list[dict[str, Any]]]] = {}
         self._detector: Detector | None = None
         self._error = ""
+        self.on_change: Callable[[], None] | None = None  # called each time a photo's results arrive
         try:
             models_table, tiers_table = read_tables()
             self.models = load_models(models_table)
@@ -423,12 +252,7 @@ class Analysis:
         if self._detector is None:
             return
         results = await asyncio.gather(*self._tasks.values(), return_exceptions=True)
-        failed = []
-        for index, result in zip(self._tasks, results, strict=True):
-            if isinstance(result, BaseException):
-                failed.append(result)
-            else:
-                self.found["now"][index] = result
+        failed = [result for result in results if isinstance(result, BaseException)]
         self._record("now", failed, len(results), elapsed)
 
     async def run_after(self, stops: list[Stop], elapsed: Callable[[], float]) -> None:
@@ -442,7 +266,7 @@ class Analysis:
             if stop.jpeg is None:
                 continue
             try:
-                self.found["after"][stop.index] = await self._analyse(detector, stop, "after")
+                await self._analyse(detector, stop, "after")
             except Exception as error:
                 failed.append(error)
         self._record("after", failed, len(stops), elapsed)
@@ -507,6 +331,9 @@ class Analysis:
     async def _analyse(self, detector: Detector, stop: Stop, tier: str) -> list[dict[str, Any]]:
         found = await asyncio.to_thread(_analyse_stop, detector, stop.jpeg or b"", self.settings.crop, tier)
         LOG.info("room scan analysis (%s): photo %d of %d: %s", tier, stop.index + 1, self.total, _summary(found))
+        self.found[tier][stop.index] = found  # kept the moment it arrives: knowledge grows during the scan
+        if self.on_change:
+            self.on_change()
         return found
 
     def _record(self, name: str, failed: list[BaseException], count: int, elapsed: Callable[[], float]) -> None:
@@ -520,6 +347,51 @@ class Analysis:
             "room scan analysis: pass %s (%s) %s on %d photos, %.1f s into the scan",
             name, record["model"], record["status"], count, record["seconds"],
         )  # fmt: skip
+
+
+class WorldPublisher:
+    """Builds and saves the robot's picture of the room (``world.json``) each time something new is known.
+
+    The picture that was there before the scan is read once and kept as stale until the new scan completes. Saving
+    is best effort: a failure is logged and never stops the scan.
+    """
+
+    def __init__(
+        self, settings: ScanSettings, analysis: Analysis, stops: list[Stop], total: int, resolution: list[int]
+    ) -> None:
+        """Remember what the picture is built from; ``stops`` is the list the scan keeps adding photos to."""
+        self._settings, self._analysis, self._stops = settings, analysis, stops
+        self._total, self._resolution = total, resolution
+        self._started = datetime.now(UTC).isoformat(timespec="seconds")
+        try:
+            self._previous = read_world()
+        except ValueError:
+            LOG.warning("the previous room picture is damaged and is ignored")
+            self._previous = None
+
+    def publish(self, status: str) -> None:
+        """Rebuild the picture from what is known now and save it: ``scanning``, ``complete`` or ``partial``."""
+        found = self._analysis.found
+        try:
+            write_world(
+                build_world(
+                    photos=[(stop.index, math.degrees(stop.measured.heading)) for stop in self._stops],
+                    detections=found,
+                    ran_tiers=tuple(tier for tier in ("now", "after") if found[tier]),
+                    status=status,
+                    total=self._total,
+                    scan_started=self._started,
+                    now=datetime.now(UTC).isoformat(timespec="seconds"),
+                    previous=self._previous,
+                    width=self._resolution[0],
+                    height=self._resolution[1],
+                    hfov_deg=self._settings.hfov_deg,
+                    tolerance_deg=self._settings.merge_tolerance_deg,
+                    overlap=self._settings.merge_overlap,
+                )
+            )
+        except Exception:
+            LOG.exception("could not save the room picture")
 
 
 async def run_scan(deps: ToolDependencies, settings: ScanSettings, reason: str) -> dict[str, Any]:
@@ -545,7 +417,10 @@ async def run_scan(deps: ToolDependencies, settings: ScanSettings, reason: str) 
     stops: list[Stop] = []
     clock = asyncio.get_running_loop().time
     analysis = Analysis(settings, len(poses))
+    world = WorldPublisher(settings, analysis, stops, len(poses), resolution)
+    analysis.on_change = lambda: world.publish("scanning")
     await analysis.start()  # the pass-1 model is opened now, so loading never delays a photo
+    world.publish("scanning")  # from here the previous picture is stale
     reachy.disable_wobbling()  # speech wobble would move the head during a photo
     began = clock()
     deps.movement_manager.queue_move(move)
@@ -562,6 +437,7 @@ async def run_scan(deps: ToolDependencies, settings: ScanSettings, reason: str) 
         reachy.enable_wobbling()
         complete = await asyncio.to_thread(save_scan, stops, len(poses), settings, reason, started, resolution)
         await asyncio.to_thread(analysis.save, stops, reason, started)
+        world.publish("complete" if complete else "partial")
     LOG.info("room scan finished: %d photos, complete=%s, reason=%s", len(stops), complete, reason)
     return {"stops": len(stops), "complete": complete, "folder": str(scan_dir())}
 
@@ -582,8 +458,9 @@ class RoomScan(Tool):  # type: ignore[misc]
         "Looks all the way round the room: the robot turns through its whole range, taking a photo at fixed "
         "steps, then turns back to where it was facing and carries on. Use it when the user wants the robot to "
         "scan or look around the room, to check the room, or asks what or who is in the room. The photos are kept "
-        "privately on the robot and cannot be analysed or described yet, so you cannot see them: never claim to "
-        "know what is in the room, only that a scan was taken. Replies at once; the scan takes about 40 seconds."
+        "privately on the robot and you cannot see them. The scan analyses them as it goes: once it has started, "
+        "use room_view to say what has been found so far and how complete that is, and never claim to know what is "
+        "in the room beyond what room_view returns. Replies at once; the scan takes about 40 seconds."
     )
     parameters_schema: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
@@ -600,6 +477,7 @@ class RoomScan(Tool):  # type: ignore[misc]
         store[TASK_KEY] = asyncio.create_task(_run_in_background(deps, settings))
         return {
             "started": True,
-            "note": "Scanning the room now; it takes about 40 seconds. The photos are saved privately "
-            "on the robot and you cannot see them yet, so do not say what is in the room.",
+            "note": "Scanning the room now; it takes about 40 seconds. The photos are saved privately on the robot "
+            "and you cannot see them. Results arrive as it goes: use room_view to say what has been found so far, "
+            "and say nothing beyond that.",
         }
