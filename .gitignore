@@ -28,3 +28,6 @@ agents.local.md
 
 # Robot backups (may contain personal memory)
 backups/
+
+# Throwaway experiments (models, scripts, results)
+temp/

@@ -40,7 +40,7 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 119
-extend-exclude = ["archive"]
+extend-exclude = ["archive", "temp"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "D"]
