@@ -18,6 +18,7 @@ Functional requirements live only here; phase documents describe implementation 
 | 4c | Room scan | To define before building: [4c](#step-4c--room-scan-to-define) | Images: per 4d | ❌ |
 | 4c2 | Voice following and TV fixes | Faults seen 2026-10-18: [4c2](#step-4c2--voice-following-and-tv-fixes-seen-2026-10-18) | None | ❌ |
 | 4d | Information security levels | To define before step 5: [4d](#step-4d--information-security-levels-to-define). Gate for the private brain | Defines it | ❌ |
+| 4e | Secure the Reachy Mini | To define: [4e](#step-4e--secure-the-reachy-mini-to-define). The device and its network exposure, not what data may go where (that is 4d) | Anyone on the home network can reach it | ❌ |
 | 5 | Private brain | `ask_brain` (on the robot) calls agent-harness on the Mac; persona says "checking", timeout handled; serious mode: automatic for anything from `ask_brain` (plain, exact read-back, confirm changes) and on request ("serious mode" until "back to normal"); start as a rule in Marvin's profile, switch to a separate plain persona via `personalities.apply` only if the rule proves unreliable (links to step 7 modes); safe slice first: reminders and calendar (today's one thing, what's due, add reminder with approval) | Reminder titles reach HF until step 6. No email/messages | ❌ |
 | 6 | Local backend on the Mac | speech-to-speech on Mac; median end-of-speech to first audio <= 1.5 s good, <= 2.5 s acceptable; Gemma vs Qwen3.5-4B. Gate for email and messages. | None leaves Mac/LAN | ❌ |
 | 7 | Modes and brain-off | General/personal switch; sensible behaviour when the Mac is off | None | ❌ |
@@ -266,6 +267,27 @@ To be defined before the private brain (step 5), beyond the current rule that pr
 - Mixed conversations: switching back and forth between private and public tools in one conversation flow.
 
 Related: cross-cutting constraints above; B-WEBGATE (search queries as an outbound channel) and B-APPROVAL below.
+
+## Step 4e — Secure the Reachy Mini (to define)
+
+Added 2026-10-23. Securing the device and what it exposes on the network; 4d covers what data may go where.
+
+**Known exposure** (from earlier notes and 2026-10-23 checks on the robot; none of it re-tested from another machine):
+- The daemon's API (port 8000) and the conversation app's `/rpc` (7860) have no login and are open on the home network.
+- When run on the robot, the hub (8710) listens on the home network and shows conversation transcripts to anyone there.
+- SSH logs in with a key. `pollen` is in the `sudo` group and `sudo` asks for a password (observed). Not checked: whether
+  SSH password login is on, and whether the default password was changed.
+- Other services running: Bluetooth GATT (`reachy-mini-bluetooth`), the access-point launcher
+  (`reachy-mini-daemon`), the GPIO shutdown daemon. Their attack surface is not reviewed.
+- Anything that runs as `pollen` can read the encrypted API keys (accepted limit) and can use the servo tools in
+  `reachy_mini/tools` (the `dialout` group), so access to the account is control of the hardware.
+- Hosted voice sends the microphone to a cloud model (see the known limit in the analysis section).
+- Updates (over the air, firmware reflash) are not reviewed. The robot's address changes (now 192.168.0.17).
+
+**To define with Simon:** who is on the home network (guests, children's devices, other smart devices), what must be
+reachable from where, and the order to lock things down. Candidates to evaluate, none decided: a firewall that allows
+only the Mac to reach the ports; hub on localhost with an SSH tunnel; a login in front of the dashboard and hub; SSH
+keys only; changing default passwords; switching off unused services.
 
 ## Backlog — not scheduled
 
